@@ -22,3 +22,9 @@
 [submodule "planners/tfd"]
 	path = planners/tfd
 	url = https://github.com/neighthan/tfd.git
+[submodule "planners/vhpop"]
+	path = planners/vhpop
+	url = https://github.com/hlsyounes/vhpop.git
+[submodule "benchmarks/ipc-domains"]
+	path = benchmarks/ipc-domains
+	url = https://github.com/plaans/tyr-ipc-domains.git

@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-02-23 15:33:20",
+  "total_tests": 9,
+  "results": {
+    "ff": [
+      {
+        "planner": "ff",
+        "config": "default",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl",
+        "success": true,
+        "runtime": 0.07080841064453125,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl\nPlanner: ff\nConfig: default\nTimeout: 60s\n--------------------------------------------------\nRunning FF with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/ff/ff -p /tmp/pddl_planner_zjk5owxq/ -o domain.pddl -f problem.pddl\n\nResults:\nSuccess: True\nRuntime: 0.00s\nPlan found with 11 steps\n\nPlan:\nstep    0: PICK BALL1 ROOMA RIGHT\n1: PICK BALL2 ROOMA LEFT\n2: MOVE ROOMA ROOMB\n3: DROP BALL1 ROOMB RIGHT\n4: DROP BALL2 ROOMB LEFT\n5: MOVE ROOMB ROOMA\n6: PICK BALL3 ROOMA RIGHT\n7: PICK BALL4 ROOMA LEFT\n8: MOVE ROOMA ROOMB\n9: DROP BALL3 ROOMB RIGHT\n10: DROP BALL4 ROOMB LEFT\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      },
+      {
+        "planner": "ff",
+        "config": "default",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl",
+        "success": true,
+        "runtime": 0.041303396224975586,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl\nPlanner: ff\nConfig: default\nTimeout: 60s\n--------------------------------------------------\nRunning FF with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/ff/ff -p /tmp/pddl_planner_qnncn1uk/ -o domain.pddl -f problem.pddl\n\nResults:\nSuccess: True\nRuntime: 0.00s\nPlan found with 17 steps\n\nPlan:\nstep    0: PICK BALL1 ROOMA RIGHT\n1: PICK BALL2 ROOMA LEFT\n2: MOVE ROOMA ROOMB\n3: DROP BALL1 ROOMB RIGHT\n4: DROP BALL2 ROOMB LEFT\n5: MOVE ROOMB ROOMA\n6: PICK BALL3 ROOMA RIGHT\n7: PICK BALL4 ROOMA LEFT\n8: MOVE ROOMA ROOMB\n9: DROP BALL3 ROOMB RIGHT\n10: DROP BALL4 ROOMB LEFT\n11: MOVE ROOMB ROOMA\n12: PICK BALL5 ROOMA RIGHT\n13: PICK BALL6 ROOMA LEFT\n14: MOVE ROOMA ROOMB\n15: DROP BALL5 ROOMB RIGHT\n16: DROP BALL6 ROOMB LEFT\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-2.pddl"
+      },
+      {
+        "planner": "ff",
+        "config": "default",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl",
+        "success": true,
+        "runtime": 0.04045438766479492,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl\nPlanner: ff\nConfig: default\nTimeout: 60s\n--------------------------------------------------\nRunning FF with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/ff/ff -p /tmp/pddl_planner_jvq0dex9/ -o domain.pddl -f problem.pddl\n\nResults:\nSuccess: True\nRuntime: 0.00s\nPlan found with 27 steps\n\nPlan:\nstep    0: LOAD-TRUCK PACKAGE3 TRUCK1 CITY1-1\n1: LOAD-TRUCK PACKAGE4 TRUCK1 CITY1-1\n2: DRIVE-TRUCK TRUCK1 CITY1-1 CITY1-2 CITY1\n3: UNLOAD-TRUCK PACKAGE3 TRUCK1 CITY1-2\n4: LOAD-TRUCK PACKAGE6 TRUCK3 CITY3-1\n5: DRIVE-TRUCK TRUCK3 CITY3-1 CITY3-2 CITY3\n6: UNLOAD-TRUCK PACKAGE4 TRUCK1 CITY1-2\n7: UNLOAD-TRUCK PACKAGE6 TRUCK3 CITY3-2\n8: LOAD-AIRPLANE PACKAGE5 PLANE1 CITY4-2\n9: FLY-AIRPLANE PLANE1 CITY4-2 CITY6-2\n10: UNLOAD-AIRPLANE PACKAGE5 PLANE1 CITY6-2\n11: FLY-AIRPLANE PLANE1 CITY6-2 CITY3-2\n12: LOAD-AIRPLANE PACKAGE6 PLANE1 CITY3-2\n13: FLY-AIRPLANE PLANE1 CITY3-2 CITY1-2\n14: LOAD-AIRPLANE PACKAGE3 PLANE1 CITY1-2\n15: LOAD-AIRPLANE PACKAGE2 PLANE1 CITY1-2\n16: LOAD-AIRPLANE PACKAGE4 PLANE1 CITY1-2\n17: UNLOAD-AIRPLANE PACKAGE6 PLANE1 CITY1-2\n18: FLY-AIRPLANE PLANE1 CITY1-2 CITY6-2\n19: UNLOAD-AIRPLANE PACKAGE3 PLANE1 CITY6-2\n20: UNLOAD-AIRPLANE PACKAGE2 PLANE1 CITY6-2\n21: FLY-AIRPLANE PLANE1 CITY6-2 CITY3-2\n22: UNLOAD-AIRPLANE PACKAGE4 PLANE1 CITY3-2\n23: DRIVE-TRUCK TRUCK6 CITY6-1 CITY6-2 CITY6\n24: LOAD-TRUCK PACKAGE3 TRUCK6 CITY6-2\n25: DRIVE-TRUCK TRUCK6 CITY6-2 CITY6-1 CITY6\n26: UNLOAD-TRUCK PACKAGE3 TRUCK6 CITY6-1\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/logistics-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      }
+    ],
+    "downward": [
+      {
+        "planner": "downward",
+        "config": "astar-lmcut",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl",
+        "success": true,
+        "runtime": 0.12589669227600098,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl\nPlanner: downward\nConfig: astar-lmcut\nTimeout: 60s\n--------------------------------------------------\nRunning Fast Downward with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/downward/fast-downward.py /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl --search astar(lmcut())\n\nResults:\nSuccess: True\nRuntime: 0.09s\nPlan found with 12 steps\n\nPlan:\n(pick ball1 rooma left)\n(pick ball2 rooma right)\n(move rooma roomb)\n(drop ball1 roomb left)\n(drop ball2 roomb right)\n(move roomb rooma)\n(pick ball3 rooma left)\n(pick ball4 rooma right)\n(move rooma roomb)\n(drop ball3 roomb left)\n(drop ball4 roomb right)\n; cost = 11 (unit cost)\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      },
+      {
+        "planner": "downward",
+        "config": "astar-lmcut",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl",
+        "success": true,
+        "runtime": 0.15163588523864746,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl\nPlanner: downward\nConfig: astar-lmcut\nTimeout: 60s\n--------------------------------------------------\nRunning Fast Downward with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/downward/fast-downward.py /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl --search astar(lmcut())\n\nResults:\nSuccess: True\nRuntime: 0.11s\nPlan found with 18 steps\n\nPlan:\n(pick ball1 rooma left)\n(pick ball2 rooma right)\n(move rooma roomb)\n(drop ball1 roomb left)\n(drop ball2 roomb right)\n(move roomb rooma)\n(pick ball3 rooma left)\n(pick ball4 rooma right)\n(move rooma roomb)\n(drop ball3 roomb left)\n(drop ball4 roomb right)\n(move roomb rooma)\n(pick ball5 rooma left)\n(pick ball6 rooma right)\n(move rooma roomb)\n(drop ball5 roomb left)\n(drop ball6 roomb right)\n; cost = 17 (unit cost)\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-2.pddl"
+      },
+      {
+        "planner": "downward",
+        "config": "astar-lmcut",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl",
+        "success": true,
+        "runtime": 3.783393144607544,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl\nPlanner: downward\nConfig: astar-lmcut\nTimeout: 60s\n--------------------------------------------------\nRunning Fast Downward with command: /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/downward/fast-downward.py /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl --search astar(lmcut())\n\nResults:\nSuccess: True\nRuntime: 3.75s\nPlan found with 27 steps\n\nPlan:\n(load-truck package6 truck3 city3-1)\n(drive-truck truck3 city3-1 city3-2 city3)\n(unload-truck package6 truck3 city3-2)\n(load-truck package4 truck1 city1-1)\n(load-truck package3 truck1 city1-1)\n(drive-truck truck1 city1-1 city1-2 city1)\n(unload-truck package4 truck1 city1-2)\n(unload-truck package3 truck1 city1-2)\n(load-airplane package5 plane2 city4-2)\n(fly-airplane plane2 city4-2 city1-2)\n(load-airplane package4 plane2 city1-2)\n(load-airplane package3 plane2 city1-2)\n(load-airplane package2 plane2 city1-2)\n(fly-airplane plane2 city1-2 city3-2)\n(load-airplane package6 plane2 city3-2)\n(unload-airplane package4 plane2 city3-2)\n(fly-airplane plane2 city3-2 city1-2)\n(unload-airplane package6 plane2 city1-2)\n(fly-airplane plane2 city1-2 city6-2)\n(unload-airplane package5 plane2 city6-2)\n(unload-airplane package3 plane2 city6-2)\n(unload-airplane package2 plane2 city6-2)\n(drive-truck truck6 city6-1 city6-2 city6)\n(load-truck package3 truck6 city6-2)\n(drive-truck truck6 city6-2 city6-1 city6)\n(unload-truck package3 truck6 city6-1)\n; cost = 26 (unit cost)\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/logistics-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      }
+    ],
+    "enhsp": [
+      {
+        "planner": "enhsp",
+        "config": "sat-hmrp",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl",
+        "success": true,
+        "runtime": 0.23846769332885742,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl\nPlanner: enhsp\nConfig: sat-hmrp\nTimeout: 60s\n--------------------------------------------------\nRunning ENHSP with command: java -jar /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/enhsp/enhsp.jar -o /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl -f /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl -timeout 60 -planner sat-hmrp -sp /tmp/pddl_planner_csxibbwd/enhsp_plan.txt\n\nResults:\nSuccess: True\nRuntime: 0.19s\nPlan found with 13 steps\n\nPlan:\n(pick ball4 rooma right)\n(move rooma roomb)\n(drop ball4 roomb right)\n(move roomb rooma)\n(pick ball2 rooma left)\n(pick ball1 rooma right)\n(move rooma roomb)\n(drop ball1 roomb right)\n(drop ball2 roomb left)\n(move roomb rooma)\n(pick ball3 rooma left)\n(move rooma roomb)\n(drop ball3 roomb left)\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      },
+      {
+        "planner": "enhsp",
+        "config": "sat-hmrp",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl",
+        "success": true,
+        "runtime": 0.23810100555419922,
+        "return_code": 0,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl\nPlanner: enhsp\nConfig: sat-hmrp\nTimeout: 60s\n--------------------------------------------------\nRunning ENHSP with command: java -jar /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/enhsp/enhsp.jar -o /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl -f /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-2.pddl -timeout 60 -planner sat-hmrp -sp /tmp/pddl_planner_a566mhug/enhsp_plan.txt\n\nResults:\nSuccess: True\nRuntime: 0.20s\nPlan found with 19 steps\n\nPlan:\n(pick ball5 rooma right)\n(pick ball3 rooma left)\n(move rooma roomb)\n(drop ball5 roomb right)\n(drop ball3 roomb left)\n(move roomb rooma)\n(pick ball1 rooma left)\n(move rooma roomb)\n(drop ball1 roomb left)\n(move roomb rooma)\n(pick ball2 rooma right)\n(pick ball6 rooma left)\n(move rooma roomb)\n(drop ball6 roomb left)\n(drop ball2 roomb right)\n(move roomb rooma)\n(pick ball4 rooma right)\n(move rooma roomb)\n(drop ball4 roomb right)\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/gripper-round-1-strips",
+        "instance_name": "instance-2.pddl"
+      },
+      {
+        "planner": "enhsp",
+        "config": "sat-hmrp",
+        "domain": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl",
+        "problem": "/home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl",
+        "success": false,
+        "runtime": 0.17311477661132812,
+        "return_code": 1,
+        "stdout": "Domain: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl\nProblem: /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl\nPlanner: enhsp\nConfig: sat-hmrp\nTimeout: 60s\n--------------------------------------------------\nRunning ENHSP with command: java -jar /home/vahid.mokhtari/ai-planning/pddl-solvers/planners/enhsp/enhsp.jar -o /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/domain.pddl -f /home/vahid.mokhtari/ai-planning/pddl-solvers/benchmarks/ipc-1998/domains/logistics-round-1-strips/instances/instance-1.pddl -timeout 60 -planner sat-hmrp -sp /tmp/pddl_planner_kacbztap/enhsp_plan.txt\n\nResults:\nSuccess: False\nRuntime: 0.13s\nNo plan found\n",
+        "stderr": "",
+        "domain_path": "ipc-1998/domains/logistics-round-1-strips",
+        "instance_name": "instance-1.pddl"
+      }
+    ]
+  }
+}
