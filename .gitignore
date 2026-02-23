@@ -1,5 +1,11 @@
 # PDDL Solvers - Compilation Artifacts and Temporary Files
 
+# IDE and Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
 # Compiled executables (but not source directories)
 **/ff
 !planners/ff/
