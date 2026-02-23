@@ -35,11 +35,14 @@
 # Backup and temporary files
 **/*~
 **/*.bak
+**/*.backup
 **/*%
 **/core
 **/.#*
 **/#*#
 **/*.tmp
+**/*.orig
+**/*.rej
 **/semantic.cache
 **/config.log
 **/*.stamp
@@ -63,6 +66,14 @@
 **/output.lint
 **/gmon.out
 **/*.symbex
+**/*.prof
+**/*.out
+**/*.err
+**/valgrind.log
+**/callgrind.out.*
+**/*.gcov
+**/*.gcda
+**/*.gcno
 
 # Plan files and planner output
 **/sas_plan*
@@ -110,15 +121,38 @@
 # IDE and editor files
 **/.vscode/
 **/.idea/
+**/.vs/
+**/workspace.xml
 **/*.swp
 **/*.swo
 **/*~
+**/*.code-workspace
 .DS_Store
 Thumbs.db
+**/.project
+**/.classpath
+**/.settings/
 
 # System files
 **/.directory
 **/desktop.ini
+**/.DS_Store
+**/Thumbs.db
+**/.Spotlight-V100
+**/.Trashes
+**/ehthumbs.db
+
+# Process and lock files
+**/*.pid
+**/*.lock
+**/.fuse_hidden*
+
+# Temporary and cache directories
+**/.cache/
+**/tmp/
+**/temp/
+**/__pycache__/
+**/.pytest_cache/
 
 # Compilation warnings files
 **/*_pure_p9_c0_400.o.warnings
@@ -146,6 +180,11 @@ tests/test_report*
 tests/test_results*
 tests/temp_*
 tests/tmp_*
+tests/.coverage*
+tests/coverage.xml
+tests/htmlcov/
+tests/.tox/
+tests/.pytest_cache/
 
 # Generated documentation and reports
 **/*_report.md
