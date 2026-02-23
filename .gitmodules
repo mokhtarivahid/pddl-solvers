@@ -1,0 +1,24 @@
+[submodule "planners/downward"]
+	path = planners/downward
+	url = https://github.com/aibasel/downward.git
+[submodule "planners/symk"]
+	path = planners/symk
+	url = https://github.com/speckdavid/symk.git
+[submodule "planners/enhsp"]
+	path = planners/enhsp
+	url = https://github.com/hstairs/enhsp.git
+[submodule "planners/optic"]
+	path = planners/optic
+	url = https://github.com/KavrakiLab/optic.git
+[submodule "planners/powerlifted"]
+	path = planners/powerlifted
+	url = https://github.com/abcorrea/powerlifted.git
+[submodule "planners/popf"]
+	path = planners/popf
+	url = https://github.com/fmrico/popf.git
+[submodule "planners/nextflap"]
+	path = planners/nextflap
+	url = https://github.com/ossaver/NextFLAP.git
+[submodule "planners/tfd"]
+	path = planners/tfd
+	url = https://github.com/neighthan/tfd.git
