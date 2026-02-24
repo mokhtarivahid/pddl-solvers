@@ -20,6 +20,9 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Import the PDDL analyzer
+from pddl_analyzer import PDDLAnalyzer, PDDLRequirementsParser, PlannerCapabilityDatabase
+
 
 class PlannerRunner:
     """Unified runner for multiple PDDL planners."""
@@ -28,6 +31,9 @@ class PlannerRunner:
         self.repo_root = Path(repo_root)
         self.planners_dir = self.repo_root / "planners"
         self.temp_dir = None
+        
+        # Initialize PDDL analyzer
+        self.analyzer = PDDLAnalyzer(str(self.repo_root))
         
         # Fast Downward search configurations
         self.fd_configs = {
@@ -977,6 +983,84 @@ class PlannerRunner:
                 break
         
         return '\n'.join(plan_lines)
+    
+    def analyze_domain(self, domain_path: str, verbose: bool = False) -> Dict:
+        """
+        Analyze a PDDL domain and return compatibility information.
+        
+        Args:
+            domain_path: Path to the PDDL domain file
+            verbose: Whether to include detailed information
+            
+        Returns:
+            Dictionary with analysis results
+        """
+        return self.analyzer.analyze_domain(domain_path)
+    
+    def print_analysis(self, analysis: Dict, verbose: bool = False):
+        """Print formatted analysis results."""
+        self.analyzer.print_analysis(analysis, verbose)
+    
+    def get_recommended_planner(self, domain_path: str) -> Optional[str]:
+        """
+        Get the recommended planner for a domain.
+        
+        Args:
+            domain_path: Path to the PDDL domain file
+            
+        Returns:
+            Recommended planner name or None if no compatible planners
+        """
+        analysis = self.analyze_domain(domain_path)
+        if analysis['analysis_summary']['recommended_planner']:
+            return analysis['analysis_summary']['recommended_planner']['system_name']
+        return None
+    
+    def auto_select_planner(self, domain_path: str, prefer_optimal: bool = True) -> Tuple[str, str]:
+        """
+        Automatically select the best planner and configuration for a domain.
+        
+        Args:
+            domain_path: Path to the PDDL domain file
+            prefer_optimal: Whether to prefer optimal planners
+            
+        Returns:
+            Tuple of (planner_name, config) or raises exception if no compatible planners
+        """
+        analysis = self.analyze_domain(domain_path)
+        compatible_planners = analysis['available_compatible_planners']
+        
+        if not compatible_planners:
+            raise ValueError("No compatible planners available for this domain")
+        
+        # Filter by optimization preference if requested
+        if prefer_optimal:
+            optimal_planners = [
+                (name, planner, score) for name, planner, score in compatible_planners
+                if planner.optimization
+            ]
+            if optimal_planners:
+                compatible_planners = optimal_planners
+        
+        # Select the highest scoring planner
+        best_planner = compatible_planners[0]
+        planner_name = best_planner[0]
+        
+        # Select appropriate config based on planner
+        if planner_name == 'downward':
+            if prefer_optimal:
+                config = 'astar-lmcut'  # Optimal
+            else:
+                config = 'lazy-greedy-ff'  # Satisficing
+        elif planner_name == 'enhsp':
+            if prefer_optimal:
+                config = 'opt-hrmax'
+            else:
+                config = 'sat-hmrp'
+        else:
+            config = None  # Use default config
+        
+        return planner_name, config
 
 
 def main():
@@ -1008,9 +1092,9 @@ ENHSP configurations:
                        help="Path to PDDL domain file")
     parser.add_argument("-p", "--problem",
                        help="Path to PDDL problem file")
-    parser.add_argument("--planner", default="downward",
+    parser.add_argument("--planner", 
                        choices=runner.get_available_planners(),
-                       help="Planner to use (default: downward)")
+                       help="Planner to use (default: auto-select based on domain analysis)")
     parser.add_argument("--config", 
                        help="Planner configuration/algorithm (see examples)")
     parser.add_argument("--timeout", type=int, default=300,
@@ -1021,6 +1105,20 @@ ENHSP configurations:
                        help="List available planners and exit")
     parser.add_argument("--list-configs", 
                        help="List available configurations for specified planner")
+    
+    # Analysis options
+    parser.add_argument("--analyze", action="store_true",
+                       help="Analyze domain requirements and show compatible planners")
+    parser.add_argument("--analyze-only", action="store_true",
+                       help="Only analyze domain, don't run planner")
+    parser.add_argument("--auto-planner", action="store_true",
+                       help="Automatically select best planner based on domain analysis")
+    parser.add_argument("--prefer-optimal", action="store_true", default=True,
+                       help="Prefer optimal planners when auto-selecting (default: true)")
+    parser.add_argument("--prefer-fast", dest="prefer_optimal", action="store_false",
+                       help="Prefer fast (satisficing) planners when auto-selecting")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                       help="Verbose output with detailed analysis information")
     
     args = parser.parse_args()
     
@@ -1044,25 +1142,90 @@ ENHSP configurations:
             print(f"No specific configurations defined for {args.list_configs}")
         return 0
     
-    # Validate required arguments for main operation
-    if not args.domain or not args.problem:
-        parser.error("Domain (-d/--domain) and problem (-p/--problem) files are required for planner execution")
+    # Handle analysis-only mode 
+    if args.analyze_only:
+        if not args.domain:
+            parser.error("Domain file (-d/--domain) is required for analysis")
+        
+        try:
+            analysis = runner.analyze_domain(args.domain)
+            runner.print_analysis(analysis, args.verbose)
+            
+            if args.output:
+                with open(args.output, 'w') as f:
+                    json.dump(analysis, f, indent=2)
+                print(f"\nAnalysis results saved to: {args.output}")
+                    
+            return 0
+        except Exception as e:
+            print(f"Error analyzing domain: {e}", file=sys.stderr)
+            return 1
+    
+    # Validate required arguments for planner execution
+    if not args.domain:
+        parser.error("Domain file (-d/--domain) is required")
+    
+    # For analysis mode, only domain is required
+    if args.analyze and not args.problem:
+        try:
+            analysis = runner.analyze_domain(args.domain)
+            runner.print_analysis(analysis, args.verbose)
+            return 0
+        except Exception as e:
+            print(f"Error analyzing domain: {e}", file=sys.stderr)
+            return 1
+    
+    # For planner execution, both domain and problem are required
+    if not args.problem:
+        parser.error("Problem file (-p/--problem) is required for planner execution")
     
     try:
         # Validate inputs
         domain_file, problem_file = runner.validate_inputs(args.domain, args.problem)
         
-        print(f"Domain: {domain_file}")
+        # Perform domain analysis if requested or if auto-selecting planner
+        analysis = None
+        if args.analyze or args.auto_planner or not args.planner:
+            print("Analyzing domain requirements...")
+            analysis = runner.analyze_domain(str(domain_file))
+            
+            if args.analyze:
+                runner.print_analysis(analysis, args.verbose)
+                if not args.planner:
+                    return 0
+        
+        # Auto-select planner if not specified or if requested
+        planner = args.planner
+        config = args.config
+        
+        if args.auto_planner or not planner:
+            try:
+                planner, auto_config = runner.auto_select_planner(
+                    str(domain_file), 
+                    prefer_optimal=args.prefer_optimal
+                )
+                if not config:  # Only use auto-config if user didn't specify one
+                    config = auto_config
+                
+                print(f"\nAuto-selected planner: {planner}")
+                if config:
+                    print(f"Auto-selected config: {config}")
+                    
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
+        
+        print(f"\nDomain: {domain_file}")
         print(f"Problem: {problem_file}")
-        print(f"Planner: {args.planner}")
-        print(f"Config: {args.config or 'default'}")
+        print(f"Planner: {planner}")
+        print(f"Config: {config or 'default'}")
         print(f"Timeout: {args.timeout}s")
         print("-" * 50)
         
         # Run planner
         result = runner.run_planner(
-            args.planner, domain_file, problem_file, 
-            args.config, args.timeout
+            planner, domain_file, problem_file, 
+            config, args.timeout
         )
         
         # Print results

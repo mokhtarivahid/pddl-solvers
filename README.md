@@ -217,6 +217,30 @@ Available: `conformant-ff`, `contingent-ff`, `downward`, `enhsp`, `ff`, `ff-x`, 
 - `opt-hrmax` - Optimal planning with HRMax heuristic
 - `gbfs-hadd` - Greedy best-first with additive heuristic
 
+### PDDL Requirements Analysis & Auto-Selection
+
+The system includes intelligent domain analysis and automatic planner selection:
+
+```bash
+# Analyze domain requirements and show compatible planners
+./run_planner.py --analyze-only -d domain.pddl
+
+# Auto-select best planner for a domain
+./run_planner.py --auto-planner -d domain.pddl -p problem.pddl
+
+# Prefer fast satisficing planners over optimal ones
+./run_planner.py --auto-planner --prefer-fast -d domain.pddl -p problem.pddl
+
+# Standalone analyzer with detailed output
+./pddl_analyzer.py domain.pddl --verbose
+```
+
+**Supported Analysis:**
+- PDDL version detection (1.2, 2.1, 2.2, 3.0+)
+- Requirements parsing (25+ requirement types)
+- Planner compatibility matching
+- Automatic optimal/satisficing selection
+
 ### Examples
 
 ```bash
@@ -239,21 +263,37 @@ Available: `conformant-ff`, `contingent-ff`, `downward`, `enhsp`, `ff`, `ff-x`, 
 Run automated tests on multiple planners using benchmark problems:
 
 ```bash
-# Quick test (recommended first run)
+# Quick planner test (recommended first run)
 ./tests/run_tests.py --quick
 
 # Test specific planners
 ./tests/run_tests.py --planners ff downward enhsp
 
-# Full test suite with custom timeout
+# Full planner test suite with custom timeout
 ./tests/run_tests.py --timeout 120
 
 # Generate reports
 ./tests/run_tests.py --output-report test_report.md --output-json results.json
 ```
 
+**PDDL Analysis System Tests:**
+
+```bash
+# Test PDDL requirements analysis and planner matching
+./tests/test_analysis.py
+
+# Quick analysis tests only
+./tests/test_analysis.py --quick
+
+# Generate analysis test reports
+./tests/test_analysis.py --output-report analysis_report.md --output-json analysis_results.json
+```
+
 Test results include:
 - Success/failure rates per planner
+- PDDL requirements parsing validation
+- Planner compatibility matching verification
+- Auto-selection functionality testing
 - Runtime statistics  
 - Markdown and JSON reports
 - Coverage across different domain types

@@ -141,10 +141,10 @@ initialize_submodules() {
         
         if git submodule update --init --recursive "$submodule_path"; then
             if [[ $VERBOSE == true ]]; then
-                echo "    ✓ $submodule_path initialized successfully"
+                echo "    $submodule_path initialized successfully"
             fi
         else
-            log_info "  ⚠ Failed to initialize submodule: $submodule_path"
+            log_info "  Warning: Failed to initialize submodule: $submodule_path"
             failed_submodules+=("$submodule_path")
         fi
     done
@@ -346,14 +346,14 @@ generate_report() {
     if [ ${#SUCCESS_LIST[@]} -gt 0 ]; then
         log_success "Successfully built planners:"
         for planner in "${SUCCESS_LIST[@]}"; do
-            echo "  ✓ $planner"
+            echo "  $planner"
         done
     fi
     
     if [ ${#FAILURE_LIST[@]} -gt 0 ]; then
         log_error "Failed to build planners:"
         for planner in "${FAILURE_LIST[@]}"; do
-            echo "  ✗ $planner"
+            echo "  Failed: $planner"
         done
     fi
     
