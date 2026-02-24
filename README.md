@@ -8,6 +8,8 @@ This repository provides a curated collection of state-of-the-art PDDL planners,
 
 ## Curated PDDL Planners & Solvers Reference
 
+<div style="font-size: 0.85em;">
+
 | Category | Planner Name | GitHub Link | Best For... |
 | --- | --- | --- | --- |
 | **Classical** | **Fast-Downward** | [aibasel/downward](https://github.com/aibasel/downward) | The industry and research "gold standard" for discrete, deterministic planning. |
@@ -27,6 +29,8 @@ This repository provides a curated collection of state-of-the-art PDDL planners,
 | **Contingent** | **Contingent-FF** | [Contingent-FF](https://fai.cs.uni-saarland.de/hoffmann/cff.html) | Partial observability planning; generates tree-shaped plans with observation branches. |  
 | **Probabilistic** | **Probabilistic-FF** | [Probabilistic-FF](https://fai.cs.uni-saarland.de/hoffmann/cff.html) | Probabilistic planning with Bayesian initial states and stochastic action effects. |
 | **Partial Order** | **VHPOP** | [hlsyounes/vhpop](https://github.com/hlsyounes/vhpop) | Versatile heuristic partial order planner with ground/lifted actions, multiple search algorithms (A*, IDA*, hill climbing), and flexible flaw selection strategies. |
+
+</div>
 
 ## System Requirements & Dependencies
 
