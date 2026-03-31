@@ -48,6 +48,29 @@
 **/*.stamp
 **/ament_cmake_*
 
+# Build directories and artifacts
+**/build/
+**/dist/
+**/enhsp-dist/
+
+# Compiled JAR files
+**/*.jar
+
+# Configuration files
+**/confdefs.h
+
+# Dynamic libraries
+**/libz3.so
+**/libz3.dylib
+**/libz3*.so
+**/libz3*.dylib
+
+# Timestamp files
+**/zPRINTDATE
+
+# Build auxiliary files
+**/build-aux/
+
 # Build directories
 **/build/
 **/target/
