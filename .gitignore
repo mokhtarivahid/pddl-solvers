@@ -58,6 +58,7 @@
 
 # Configuration files
 **/confdefs.h
+**/config.h
 
 # Dynamic libraries
 **/libz3.so
