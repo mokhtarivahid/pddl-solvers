@@ -55,7 +55,7 @@ class AnalysisTestSuite:
                 "name": "Temporal Planning",
                 "path": "benchmarks/temporal-domains/elevators-strips/domain.pddl", 
                 "expected_type": "Temporal Planning",
-                "expected_planners": ["optic", "enhsp", "popf", "tfd"]
+                "expected_planners": ["optic", "popf", "tfd"]
             }
         ]
     
@@ -124,7 +124,7 @@ class AnalysisTestSuite:
                     print(f"    ! Planning type mismatch: expected {test_case['expected_type']}, got {summary['planning_approach']}")
                 
                 # Check some expected planners are present
-                compatible_names = [name for name, _, _ in analysis['available_compatible_planners']]
+                compatible_names = [name for name, _ in analysis['available_compatible_planners']]
                 found_expected = any(planner in compatible_names for planner in test_case['expected_planners'])
                 if found_expected:
                     print(f"    PASS: Found expected planners")
@@ -158,7 +158,7 @@ class AnalysisTestSuite:
             },
             {
                 "requirements": ["durative-actions", "typing"],
-                "expected_compatible": ["optic", "popf", "enhsp", "tfd"],
+                "expected_compatible": ["optic", "popf", "tfd"],
                 "description": "Temporal planning"
             }
         ]
@@ -171,7 +171,7 @@ class AnalysisTestSuite:
             
             try:
                 compatible = self.analyzer.planner_db.get_compatible_planners(test_case['requirements'])
-                compatible_names = [name for name, _, _ in compatible]
+                compatible_names = [name for name, _ in compatible]
                 
                 print(f"    Compatible planners: {len(compatible)} ({compatible_names[:5]}{'...' if len(compatible_names) > 5 else ''})")
                 
@@ -285,7 +285,7 @@ class AnalysisTestSuite:
                 
                 if summary['recommended_planner']:
                     rec = summary['recommended_planner']
-                    print(f"    → Recommended: {rec['name']} ({rec['compatibility_score']:.1%} match)")
+                    print(f"    -> Recommended: {rec['name']}")
                 
                 demo_successes += 1
                 

@@ -1,0 +1,385 @@
+# PDDL Solvers - Planner Specification File
+#
+# This file defines all available planners, their configurations, and parameters.
+# Use this as a single source of truth for planner capabilities and how to invoke them.
+#
+# Specification Format:
+# - Each planner has:
+#   - description: Human-readable description
+#   - executable: Path to executable (relative to planner directory)
+#   - requires: List of PDDL requirements (e.g., "temporal", "durative-actions")
+#   - capabilities: What this planner supports
+#   - configurations: Named configs (e.g., "optimal", "satisficing")
+#   - parameters: Optional planner-specific flags/arguments
+
+planners:
+  downward:
+    description: "Fast Downward - Multi-algorithm PDDL planner"
+    executable: "fast-downward.py"
+    requires: []
+    capabilities:
+      - optimal
+      - satisficing
+      - multi-search
+    
+    configurations:
+      default:
+        description: "Single optimal plan with A* and LM-cut heuristic"
+        search: "astar(lmcut())"
+      
+      optimal-lmcut:
+        description: "Optimal planning with LM-cut heuristic"
+        search: "astar(lmcut())"
+      
+      optimal-ff:
+        description: "Optimal planning with FF heuristic"
+        search: "astar(ff())"
+      
+      satisficing-ff:
+        description: "Satisficing planning with FF heuristic"
+        search: "lazy_greedy([ff()], preferred=[ff()])"
+      
+      satisficing-lmcut:
+        description: "Satisficing planning with LM-cut"
+        search: "lazy_greedy([lmcut()])"
+    
+    parameters:
+      description: "Supported parameters (run 'fast-downward.py --help' for details)"
+      optional:
+        "--plan-file":
+          type: "string"
+          description: "Output file for plan (default: sas_plan)"
+        "--translate-options":
+          type: "string"
+          description: "Options for translator (e.g., --keep-no-ops)"
+        "--search-options":
+          type: "string"
+          description: "Options for search"
+
+  symk:
+    description: "SymK - Symbolic optimal and top-k PDDL planner"
+    executable: "fast-downward.py"
+    requires: []
+    capabilities:
+      - optimal
+      - topk
+      - topq
+      - loopless
+      - axioms
+      - conditional-effects
+    
+    configurations:
+      default:
+        description: "Single optimal plan, bidirectional search"
+        search: "sym_bd()"
+      
+      optimal-bd:
+        description: "Single optimal, bidirectional search (recommended)"
+        search: "sym_bd()"
+      
+      optimal-fw:
+        description: "Single optimal, forward search"
+        search: "sym_fw()"
+      
+      optimal-bw:
+        description: "Single optimal, backward search"
+        search: "sym_bw()"
+      
+      topk-3:
+        description: "Top 3 best plans, bidirectional"
+        search: "symk_bd(plan_selection=top_k(num_plans=3))"
+      
+      topk-5:
+        description: "Top 5 best plans, bidirectional"
+        search: "symk_bd(plan_selection=top_k(num_plans=5))"
+      
+      topk-10:
+        description: "Top 10 best plans, bidirectional"
+        search: "symk_bd(plan_selection=top_k(num_plans=10))"
+      
+      topq-3-q1.5:
+        description: "Top 3 plans within 1.5x optimal cost"
+        search: "symq_bd(plan_selection=top_k(num_plans=3), quality=1.5)"
+      
+      topq-5-q2.0:
+        description: "Top 5 plans within 2.0x optimal cost"
+        search: "symq_bd(plan_selection=top_k(num_plans=5), quality=2.0)"
+      
+      loopless-3:
+        description: "Top 3 loopless plans (no state revisit)"
+        search: "symk_bd(simple=true, plan_selection=top_k(num_plans=3))"
+      
+      unordered-3:
+        description: "Top 3 unique action multisets"
+        search: "symk_bd(plan_selection=unordered(num_plans=3))"
+    
+    parameters:
+      description: "SymK-specific parameters (see SymK README for details)"
+      optional:
+        "--plan-file":
+          type: "string"
+          description: "Output file for plans (default: sas_plan)"
+        "--translate-options":
+          type: "string"
+          description: "Pass to translator (e.g., --keep-no-ops to include all actions)"
+        "--search":
+          type: "string"
+          description: "Custom search command (overrides config)"
+
+  tfd:
+    description: "Temporal Fast Downward - Temporal planning"
+    executable: "tfd"
+    requires:
+      - durative-actions
+    capabilities:
+      - temporal
+      - satisficing
+    
+    configurations:
+      default:
+        description: "Temporal satisficing planning"
+        args: []
+    
+    parameters:
+      description: "TFD takes domain, problem, solution_file as arguments"
+      note: "Wrapper automatically provides solution_file path"
+      optional:
+        "--config":
+          type: "string"
+          description: "Custom TFD search configuration string"
+
+  optic:
+    description: "OPTIC - Optimal Temporal Planning with Consequences"
+    executable: "optic"
+    requires:
+      - durative-actions
+    capabilities:
+      - temporal
+      - optimal
+      - constraints
+    
+    configurations:
+      default:
+        description: "Optimal temporal planning"
+        args: ["-N"]
+      
+      optimal:
+        description: "Optimal temporal planning"
+        args: ["-N"]
+      
+      first-solution:
+        description: "Stop at first feasible solution (not optimal)"
+        args: ["-N", "-b"]
+      
+      greedy:
+        description: "Greedy FF-style planning"
+        args: ["-N", "-g"]
+    
+    parameters:
+      description: "OPTIC command-line flags"
+      optional:
+        "-b":
+          description: "Stop at first solution found"
+        "-g":
+          description: "Use greedy FF reachability graph"
+        "-c":
+          description: "Use constraint-based search"
+        "-e":
+          description: "Epsilon for floating-point comparisons"
+
+  popf:
+    description: "POPF - Partial Order Temporal Planner"
+    executable: "popf"
+    requires:
+      - durative-actions
+    capabilities:
+      - temporal
+      - satisficing
+      - constraints
+    
+    configurations:
+      default:
+        description: "Temporal satisficing planning"
+        args: []
+    
+    parameters:
+      description: "POPF command-line flags"
+      optional:
+        "-b":
+          description: "Backward pass only"
+        "-w":
+          description: "Disable resource analysis"
+
+  enhsp:
+    description: "ENHSP - Expressive Numeric Heuristic Search Planner"
+    executable: "enhsp"
+    requires:
+      - numeric-fluents
+    capabilities:
+      - numeric
+      - optimal
+      - satisficing
+    
+    configurations:
+      default:
+        description: "Satisficing numeric planning"
+        search: "sat-hmrp"
+      
+      satisficing-hmrp:
+        description: "Satisficing with HMRP heuristic"
+        search: "sat-hmrp"
+      
+      optimal-hrmax:
+        description: "Optimal with hrmax heuristic"
+        search: "opt-hrmax"
+      
+      greedy-hadd:
+        description: "Greedy search with additive heuristic"
+        search: "gbfs -h hadd"
+    
+    parameters:
+      description: "ENHSP takes 'planner <domain> <problem> <search>'"
+
+  ff:
+    description: "FF - Fast Forward planner"
+    executable: "ff"
+    requires: []
+    capabilities:
+      - satisficing
+      - strips
+    
+    configurations:
+      default:
+        description: "Satisficing STRIPS planning"
+        args: []
+    
+    parameters:
+      description: "FF command-line flags"
+      optional:
+        "-o":
+          description: "Domain file"
+        "-f":
+          description: "Problem file"
+        "-h":
+          description: "Display help"
+
+  metric-ff:
+    description: "Metric-FF - FF extended for metric planning"
+    executable: "ff"
+    requires:
+      - numeric-fluents
+    capabilities:
+      - numeric
+      - satisficing
+    
+    configurations:
+      default:
+        description: "Metric satisficing planning"
+        args: []
+
+  conformant-ff:
+    description: "Conformant-FF - Conformant planning"
+    executable: "ff"
+    requires:
+      - conditional-effects
+    capabilities:
+      - conformant
+      - incomplete-info
+    
+    configurations:
+      default:
+        description: "Conformant planning"
+        args: []
+
+  contingent-ff:
+    description: "Contingent-FF - Contingent planning with sensing"
+    executable: "ff"
+    requires:
+      - conditional-effects
+      - sensing
+    capabilities:
+      - contingent
+      - sensing
+    
+    configurations:
+      default:
+        description: "Contingent planning with actions and sensing"
+        args: []
+
+  madagascar:
+    description: "Madagascar - SAT-based PDDL planner"
+    executable: "madagascar"
+    requires: []
+    capabilities:
+      - optimal
+      - satisficing
+      - sat-based
+    
+    configurations:
+      default:
+        description: "SAT-based optimal planning"
+        args: []
+
+  powerlifted:
+    description: "Powerlifted - Lifted-clause planning"
+    executable: "powerlifted"
+    requires:
+      - equality
+    capabilities:
+      - lifted-search
+    
+    configurations:
+      default:
+        description: "Lifted-clause planning"
+        args: []
+
+  nextflap:
+    description: "NextFLAP - Forward-chaining temporal planner"
+    executable: "nextflap"
+    requires: []
+    capabilities:
+      - satisficing
+    
+    configurations:
+      default:
+        description: "Forward-chaining planning"
+        args: []
+
+  vhpop:
+    description: "VHPOP - Verification of Hierarchical Partial Order Planner"
+    executable: "vhpop"
+    requires: []
+    capabilities:
+      - hierarchical
+      - htn
+    
+    configurations:
+      default:
+        description: "Hierarchical task network planning"
+        args: []
+
+  probabilistic-ff:
+    description: "Probabilistic-FF - Probabilistic planning"
+    executable: "ff"
+    requires:
+      - probabilistic-effects
+    capabilities:
+      - probabilistic
+    
+    configurations:
+      default:
+        description: "Probabilistic satisficing planning"
+        args: []
+
+  ff-x:
+    description: "FF-X - FF extended"
+    executable: "ff"
+    requires: []
+    capabilities:
+      - satisficing
+      - extended
+    
+    configurations:
+      default:
+        description: "Extended FF planning"
+        args: []

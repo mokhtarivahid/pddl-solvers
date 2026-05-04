@@ -13,7 +13,7 @@ import re
 import os
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 
 
@@ -28,6 +28,8 @@ class PlannerCapability:
     performance_category: str = "medium"  # low, medium, high
     optimization: bool = False  # True if supports optimization
     temporal: bool = False  # True if supports temporal planning
+    approach_tags: Set[str] = field(default_factory=set)  # classical, adl, numeric, temporal, lifted, uncertainty, probabilistic
+    temporal_only: bool = False  # True if planner should only be used for temporal domains
     
     
 class PDDLRequirementsParser:
@@ -216,6 +218,7 @@ class PlannerCapabilityDatabase:
                 performance_category='high',
                 optimization=True,
                 temporal=False,
+                approach_tags={'classical', 'adl', 'numeric', 'optimal', 'satisficing'},
                 notes='Supports most PDDL 1.2 and 2.1 features except temporal planning'
             ),
             
@@ -228,6 +231,7 @@ class PlannerCapabilityDatabase:
                 performance_category='high',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'adl-lite', 'satisficing'},
                 notes='Good for basic STRIPS and ADL planning'
             ),
             
@@ -239,6 +243,7 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=True,
                 temporal=False,
+                approach_tags={'numeric', 'classical', 'optimal', 'satisficing'},
                 notes='Handles numeric planning problems'
             ),
             
@@ -251,6 +256,7 @@ class PlannerCapabilityDatabase:
                 performance_category='high',
                 optimization=True,
                 temporal=True,
+                approach_tags={'temporal', 'numeric', 'optimal', 'satisficing'},
                 notes='Excellent for temporal and numeric planning'
             ),
             
@@ -262,43 +268,47 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=False,
                 temporal=True,
+                approach_tags={'temporal', 'numeric', 'satisficing'},
                 notes='Good for basic temporal planning'
             ),
             
             # Numeric and Hybrid Planners
             'enhsp': PlannerCapability(
                 name='ENHSP',
-                supported_requirements=temporal_reqs | numeric_reqs | {'continuous-effects'},
+                supported_requirements=numeric_reqs | {'continuous-effects', 'constraints'},
                 pddl_version='PDDL 2.1+',
-                description='Heuristic search planner for numeric and temporal domains',
+                description='Heuristic search planner for expressive numeric domains',
                 performance_category='high',
                 optimization=True,
-                temporal=True,
-                notes='Specialized in numeric and temporal planning'
+                temporal=False,
+                approach_tags={'numeric', 'optimal', 'satisficing', 'constraints'},
+                notes='Specialized in numeric planning; does not reliably support durative actions'
             ),
             
             # Lifted Planning
             'powerlifted': PlannerCapability(
                 name='PowerLifted',
-                supported_requirements=adl_reqs,
+                supported_requirements=basic_reqs | {'equality'},
                 pddl_version='PDDL 1.2+',
                 description='Lifted classical planner using first-order representations',
                 performance_category='medium',
                 optimization=True,
                 temporal=False,
-                notes='Good for domains with many objects'
+                approach_tags={'classical', 'lifted', 'satisficing', 'optimal'},
+                notes='Lifted STRIPS-like planning; no conditional effects, quantifiers, or axioms'
             ),
             
             # Symbolic Planners
             'symk': PlannerCapability(
                 name='SymK',
-                supported_requirements=basic_reqs | {'conditional-effects'},
+                supported_requirements=adl_reqs | {'derived-predicates'},
                 pddl_version='PDDL 1.2',
                 description='Symbolic planner using binary decision diagrams',
                 performance_category='medium',
                 optimization=True,
                 temporal=False,
-                notes='Effective for certain structured domains'
+                approach_tags={'classical', 'adl', 'optimal', 'topk'},
+                notes='Supports top-k/top-q planning; supports conditional effects and derived predicates'
             ),
             
             # Partial Order Planners
@@ -310,6 +320,7 @@ class PlannerCapabilityDatabase:
                 performance_category='low',
                 optimization=True,
                 temporal=False,
+                approach_tags={'classical', 'adl', 'partial-order', 'optimal'},
                 notes='Academic planner, good for small problems'
             ),
             
@@ -322,6 +333,7 @@ class PlannerCapabilityDatabase:
                 performance_category='low',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'uncertainty', 'conformant'},
                 notes='Specialized for planning under uncertainty'
             ),
             
@@ -333,6 +345,7 @@ class PlannerCapabilityDatabase:
                 performance_category='low',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'uncertainty', 'contingent'},
                 notes='Handles conditional planning with observations'
             ),
             
@@ -345,6 +358,7 @@ class PlannerCapabilityDatabase:
                 performance_category='low',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'probabilistic'},
                 notes='Experimental probabilistic planner'
             ),
             
@@ -357,6 +371,8 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=True,
                 temporal=True,
+                approach_tags={'temporal', 'numeric', 'optimal', 'satisficing'},
+                temporal_only=True,
                 notes='Temporal planning based on Fast Downward'
             ),
             
@@ -368,6 +384,7 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=True,
                 temporal=False,
+                approach_tags={'classical', 'sat', 'optimal', 'satisficing'},
                 notes='Uses SAT solvers for planning'
             ),
             
@@ -379,6 +396,7 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'hybrid'},
                 notes='Experimental learning-based approach'
             ),
             
@@ -390,13 +408,14 @@ class PlannerCapabilityDatabase:
                 performance_category='medium',
                 optimization=False,
                 temporal=False,
+                approach_tags={'classical', 'adl-lite', 'satisficing'},
                 notes='FF variant with additional features'
             )
         }
         
         return planners
     
-    def get_compatible_planners(self, requirements: List[str]) -> List[Tuple[str, PlannerCapability, float]]:
+    def get_compatible_planners(self, requirements: List[str]) -> List[Tuple[str, PlannerCapability]]:
         """
         Get planners compatible with the given requirements.
         
@@ -404,14 +423,18 @@ class PlannerCapabilityDatabase:
             requirements: List of PDDL requirements
             
         Returns:
-            List of tuples: (planner_name, capability, compatibility_score)
+            List of tuples: (planner_name, capability)
         """
         req_set = set(req.lower().replace('_', '-') for req in requirements)
+        is_temporal_domain = 'durative-actions' in req_set
         compatible = []
         
         for name, planner in self.planners.items():
-            # Calculate compatibility score
             supported_reqs = planner.supported_requirements
+
+            # Some planners should be considered only for temporal domains.
+            if planner.temporal_only and not is_temporal_domain:
+                continue
             
             # Essential requirements that must be supported
             essential_missing = req_set - supported_reqs
@@ -419,30 +442,21 @@ class PlannerCapabilityDatabase:
             # Handle special cases and aliases
             essential_missing = self._normalize_requirements(essential_missing, supported_reqs)
             
+            # Strictly compatible when no critical requirement is missing.
             if not essential_missing:
-                # Full compatibility
-                coverage = len(req_set & supported_reqs) / len(req_set) if req_set else 1.0
-                compatibility_score = coverage
-            else:
-                # Partial compatibility - check if missing requirements are critical
-                critical_missing = self._get_critical_missing_requirements(essential_missing)
-                if not critical_missing:
-                    # Missing only non-critical requirements
-                    coverage = len(req_set & supported_reqs) / len(req_set) if req_set else 1.0
-                    compatibility_score = coverage * 0.8  # Slight penalty for missing features
-                else:
-                    # Missing critical requirements
-                    compatibility_score = 0.0
-            
-            if compatibility_score > 0:
-                compatible.append((name, planner, compatibility_score))
-        
-        # Sort by compatibility score (descending) and then by performance category
+                compatible.append((name, planner))
+                continue
+
+            critical_missing = self._get_critical_missing_requirements(essential_missing)
+            if not critical_missing:
+                compatible.append((name, planner))
+
+        # Stable ordering by performance category for display.
         performance_order = {'high': 3, 'medium': 2, 'low': 1}
-        compatible.sort(key=lambda x: (x[2], performance_order.get(x[1].performance_category, 1)), reverse=True)
+        compatible.sort(key=lambda x: performance_order.get(x[1].performance_category, 1), reverse=True)
         
         return compatible
-    
+
     def _normalize_requirements(self, missing_reqs: Set[str], supported_reqs: Set[str]) -> Set[str]:
         """Normalize and handle requirement aliases and implications."""
         normalized_missing = missing_reqs.copy()
@@ -488,6 +502,11 @@ class PDDLAnalyzer:
         self.planner_db = PlannerCapabilityDatabase()
         self.repo_root = Path(repo_root) if repo_root else Path.cwd()
         self.planners_dir = self.repo_root / "planners"
+        # Keep in sync with README Build Status "Working" planners.
+        self.working_planners = {
+            'downward', 'ff', 'conformant-ff', 'contingent-ff', 'metric-ff',
+            'enhsp', 'symk', 'madagascar', 'optic', 'popf', 'tfd', 'powerlifted'
+        }
     
     def analyze_domain(self, domain_path: str) -> Dict:
         """
@@ -504,38 +523,133 @@ class PDDLAnalyzer:
         
         # Get compatible planners
         compatible_planners = self.planner_db.get_compatible_planners(domain_info['requirements'])
+        planning_approach = self._determine_planning_approach(domain_info['requirements'])
         
         # Filter by available planners in the system
         available_planners = self._get_available_planners()
         available_compatible = [
-            (name, planner, score) for name, planner, score in compatible_planners
+            (name, planner) for name, planner in compatible_planners
             if name in available_planners
         ]
+
+        # Rank available compatible planners by reliability/community adoption and fit.
+        ranked_available_compatible = sorted(
+            available_compatible,
+            key=lambda x: self._recommendation_score(x[0], x[1], planning_approach),
+            reverse=True
+        )
         
         result = {
             'domain_info': domain_info,
             'compatible_planners': compatible_planners,
-            'available_compatible_planners': available_compatible,
+            'available_compatible_planners': ranked_available_compatible,
             'available_planners': list(available_planners),
-            'analysis_summary': self._generate_analysis_summary(domain_info, compatible_planners, available_compatible)
+            'analysis_summary': self._generate_analysis_summary(domain_info, compatible_planners, ranked_available_compatible)
         }
         
         return result
+
+    def _recommendation_score(self, planner_name: str, planner: PlannerCapability, planning_approach: str) -> int:
+        """Heuristic recommendation score based on reliability and domain fit."""
+        community_reliability = {
+            'downward': 100,
+            'symk': 96,
+            'ff': 92,
+            'metric-ff': 88,
+            'optic': 90,
+            'popf': 86,
+            'enhsp': 87,
+            'tfd': 84,
+            'powerlifted': 82,
+            'madagascar': 80,
+            'ff-x': 74,
+            'vhpop': 70,
+            'nextflap': 66,
+            'conformant-ff': 72,
+            'contingent-ff': 72,
+            'probabilistic-ff': 68,
+        }
+
+        score = community_reliability.get(planner_name, 60)
+
+        if planning_approach == 'Classical Planning':
+            score += {
+                'downward': 15,
+                'symk': 12,
+                'ff': 10,
+                'madagascar': 7,
+                'powerlifted': 6,
+                'metric-ff': 4,
+            }.get(planner_name, 0)
+        elif planning_approach == 'ADL Planning':
+            score += {
+                'downward': 14,
+                'symk': 11,
+                'ff-x': 9,
+                'ff': 8,
+            }.get(planner_name, 0)
+        elif planning_approach == 'Numeric Planning':
+            score += {
+                'enhsp': 14,
+                'metric-ff': 12,
+                'downward': 9,
+            }.get(planner_name, 0)
+        elif planning_approach == 'Temporal Planning':
+            score += {
+                'optic': 15,
+                'popf': 12,
+                'tfd': 11,
+            }.get(planner_name, 0)
+        elif planning_approach == 'Temporal-Numeric Planning':
+            score += {
+                'optic': 15,
+                'popf': 13,
+                'tfd': 12,
+            }.get(planner_name, 0)
+
+        # High-performance planners get a slight tie-break preference.
+        score += {'high': 2, 'medium': 1, 'low': 0}.get(planner.performance_category, 0)
+
+        return score
     
     def _get_available_planners(self) -> Set[str]:
-        """Get list of planners actually available in the system."""
+        """Get planners that are both marked working and runnable in this workspace."""
         available = set()
         
         if not self.planners_dir.exists():
             return available
         
-        for planner_dir in self.planners_dir.iterdir():
-            if planner_dir.is_dir():
-                planner_name = planner_dir.name
-                if planner_name in self.planner_db.planners:
-                    available.add(planner_name)
+        for planner_name in self.working_planners:
+            if planner_name not in self.planner_db.planners:
+                continue
+            if self._is_planner_runnable(planner_name):
+                available.add(planner_name)
         
         return available
+
+    def _is_planner_runnable(self, planner_name: str) -> bool:
+        """Check if a planner has the expected runnable artifact in this repo."""
+        planner_dir = self.planners_dir / planner_name
+        if not planner_dir.exists() or not planner_dir.is_dir():
+            return False
+
+        expected_artifacts = {
+            'downward': [planner_dir / 'fast-downward.py'],
+            'ff': [planner_dir / 'ff'],
+            'conformant-ff': [planner_dir / 'ff'],
+            'contingent-ff': [planner_dir / 'ff'],
+            'metric-ff': [planner_dir / 'ff'],
+            'enhsp': [planner_dir / 'enhsp.jar'],
+            'symk': [planner_dir / 'fast-downward.py'],
+            'madagascar': [planner_dir / 'Mp'],
+            'optic': [planner_dir / 'build' / 'src' / 'optic' / 'optic-clp'],
+            'popf': [planner_dir / 'build' / 'popf'],
+            'tfd': [planner_dir / 'downward' / 'tfd'],
+            'powerlifted': [planner_dir / 'powerlifted.py']
+        }
+
+        artifacts = expected_artifacts.get(planner_name, [])
+        return all(path.exists() for path in artifacts)
     
     def _generate_analysis_summary(self, domain_info: Dict, 
                                   compatible_planners: List, 
@@ -561,7 +675,6 @@ class PDDLAnalyzer:
             summary['recommended_planner'] = {
                 'name': best_planner[1].name,
                 'system_name': best_planner[0],
-                'compatibility_score': best_planner[2],
                 'description': best_planner[1].description,
                 'notes': best_planner[1].notes
             }
@@ -630,9 +743,9 @@ class PDDLAnalyzer:
         
         available_planners = analysis['available_compatible_planners']
         if available_planners:
-            for i, (name, planner, score) in enumerate(available_planners[:5]):  # Show top 5
+            for i, (name, planner) in enumerate(available_planners):
                 status = "AVAILABLE" if name in analysis['available_planners'] else "Not Available"
-                print(f"  {i+1}. {planner.name} ({name}) - {score:.1%} compatible {status}")
+                print(f"  {i+1}. {planner.name} ({name}) - compatible {status}")
                 if verbose:
                     print(f"     {planner.description}")
                     if planner.notes:
@@ -643,7 +756,7 @@ class PDDLAnalyzer:
         if summary['recommended_planner']:
             rec = summary['recommended_planner']
             print(f"\nRECOMMENDED PLANNER:")
-            print(f"   {rec['name']} ({rec['system_name']}) - {rec['compatibility_score']:.1%} compatible")
+            print(f"   {rec['name']} ({rec['system_name']})")
             print(f"   {rec['description']}")
             if rec['notes']:
                 print(f"   Note: {rec['notes']}")
@@ -682,14 +795,13 @@ def main():
                     {
                         'name': planner.name,
                         'system_name': name,
-                        'compatibility_score': score,
                         'description': planner.description,
                         'supported_requirements': list(planner.supported_requirements),
                         'pddl_version': planner.pddl_version,
                         'temporal': planner.temporal,
                         'optimization': planner.optimization
                     }
-                    for name, planner, score in analysis['compatible_planners']
+                    for name, planner in analysis['compatible_planners']
                 ]
             }
             print(json.dumps(json_output, indent=2))

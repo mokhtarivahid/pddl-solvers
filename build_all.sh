@@ -336,7 +336,7 @@ build_powerlifted() {
 }
 
 build_popf() {
-    build_planner "POPF" "planners/popf" "mkdir -p build && cd build && cmake .. && make"
+    build_planner "POPF" "planners/popf" "mkdir -p build && cd build && cmake -DCMAKE_BUILD_RPATH='$ORIGIN' -DCMAKE_INSTALL_RPATH='$ORIGIN' .. && make"
 }
 
 build_nextflap() {
