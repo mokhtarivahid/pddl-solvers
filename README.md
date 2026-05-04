@@ -117,10 +117,13 @@ chmod +x build_all.sh
 The build script will:
 - Check system dependencies
 - Initialize git submodules
+- Auto-configure local submodule ignore rules for generated build artifacts
 - Download direct source planners (MADAGASCAR, etc.)
 - Attempt to build each planner individually
 - Skip failed builds and continue with others
 - Generate comprehensive build report
+
+Note: planner repositories under `planners/` are external git submodules with their own history. When `./build_all.sh` runs, it now applies a common local ignore baseline (object files, build directories, CMake/autotools outputs, logs, caches, etc.) to all configured submodules via each submodule's `info/exclude`, plus planner-specific patterns where needed (for example ENHSP `enhsp-dist/` and JAR files). This keeps `git status` and VS Code Source Control clean across cloned environments without modifying upstream submodule history.
 
 ## Quick Start
 

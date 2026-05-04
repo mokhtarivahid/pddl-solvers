@@ -157,6 +157,93 @@ initialize_submodules() {
     fi
 }
 
+# Configure local ignore rules inside submodules for generated artifacts.
+# These patterns are intentionally local to each submodule repository.
+configure_submodule_ignores() {
+    log_info "Configuring submodule local ignore rules for build artifacts..."
+
+    local configured=0
+
+    add_submodule_exclude() {
+        local repo_path=$1
+        local pattern=$2
+
+        if [[ ! -d "$repo_path" ]]; then
+            return 0
+        fi
+
+        local exclude_file
+        exclude_file=$(git -C "$repo_path" rev-parse --git-path info/exclude 2>/dev/null || true)
+        if [[ -z "$exclude_file" ]]; then
+            return 0
+        fi
+
+        mkdir -p "$(dirname "$exclude_file")"
+        touch "$exclude_file"
+
+        if ! grep -Fxq "$pattern" "$exclude_file"; then
+            echo "$pattern" >> "$exclude_file"
+            ((configured++))
+            if [[ $VERBOSE == true ]]; then
+                echo "  added $repo_path -> $pattern"
+            fi
+        fi
+    }
+
+    # Get all configured submodules from .gitmodules.
+    local configured_submodules=($(git config --file .gitmodules --get-regexp path | awk '{print $2}'))
+    if [[ ${#configured_submodules[@]} -eq 0 ]]; then
+        log_info "No submodules found for ignore configuration"
+        return 0
+    fi
+
+    # Common generated artifacts to ignore in all submodules.
+    local common_patterns=(
+        "*.o"
+        "*.obj"
+        "*.so"
+        "*.a"
+        "*.dylib"
+        "*.pyc"
+        "__pycache__/"
+        "build/"
+        "dist/"
+        "target/"
+        "bin/"
+        "obj/"
+        "CMakeFiles/"
+        "CMakeCache.txt"
+        "cmake_install.cmake"
+        "config.log"
+        "config.status"
+        "confdefs.h"
+        "autom4te.cache/"
+        ".deps/"
+        ".libs/"
+        "*.tmp"
+        "*.log"
+        "gmon.out"
+    )
+
+    local submodule_path
+    local pattern
+    for submodule_path in "${configured_submodules[@]}"; do
+        for pattern in "${common_patterns[@]}"; do
+            add_submodule_exclude "$submodule_path" "$pattern"
+        done
+    done
+
+    # Planner-specific generated outputs not covered by common patterns.
+    add_submodule_exclude "planners/enhsp" "enhsp-dist/"
+    add_submodule_exclude "planners/enhsp" "*.jar"
+
+    if [[ $configured -gt 0 ]]; then
+        log_success "Configured $configured new local submodule ignore rule(s) across all submodules"
+    else
+        log_info "Submodule local ignore rules already configured"
+    fi
+}
+
 # Download MADAGASCAR if not present
 download_madagascar() {
     if [ ! -d "planners/madagascar" ]; then
@@ -385,6 +472,9 @@ main() {
     
     # Initialize submodules
     initialize_submodules
+
+    # Configure local submodule ignore patterns for generated build artifacts
+    configure_submodule_ignores
     
     # Download direct source planners
     download_madagascar
