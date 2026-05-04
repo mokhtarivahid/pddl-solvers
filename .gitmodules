@@ -1,30 +1,39 @@
 [submodule "planners/downward"]
 	path = planners/downward
 	url = https://github.com/aibasel/downward.git
+	ignore = dirty
 [submodule "planners/symk"]
 	path = planners/symk
 	url = https://github.com/speckdavid/symk.git
+	ignore = dirty
 [submodule "planners/enhsp"]
 	path = planners/enhsp
 	url = https://github.com/hstairs/enhsp.git
+	ignore = dirty
 [submodule "planners/optic"]
 	path = planners/optic
 	url = https://github.com/KavrakiLab/optic.git
+	ignore = dirty
 [submodule "planners/powerlifted"]
 	path = planners/powerlifted
 	url = https://github.com/abcorrea/powerlifted.git
+	ignore = dirty
 [submodule "planners/popf"]
 	path = planners/popf
 	url = https://github.com/fmrico/popf.git
+	ignore = dirty
 [submodule "planners/nextflap"]
 	path = planners/nextflap
 	url = https://github.com/ossaver/NextFLAP.git
+	ignore = dirty
 [submodule "planners/tfd"]
 	path = planners/tfd
 	url = https://github.com/neighthan/tfd.git
+	ignore = dirty
 [submodule "planners/vhpop"]
 	path = planners/vhpop
 	url = https://github.com/hlsyounes/vhpop.git
+	ignore = dirty
 [submodule "benchmarks/ipc-domains"]
 	path = benchmarks/ipc-domains
 	url = https://github.com/plaans/tyr-ipc-domains.git
