@@ -194,12 +194,12 @@ The build script will:
 3. **Run a planner:**
    ```bash
    # Run FF planner on a benchmark
-   ./run_planner.py -d benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl \
-                     -p benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl \
-                     --planner ff
+  ./run_planner.py benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl \
+              benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl \
+              -p ff
    
    # Run Fast Downward with A* + LM-cut
-  ./run_planner.py -d domain.pddl -p problem.pddl --planner downward --config optimal-lmcut
+  ./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
    
    # Show available configurations for a planner
    ./run_planner.py --list-configs symk
@@ -211,15 +211,15 @@ The repository includes `run_planner.py` - a unified Python script that provides
 
 ### Design Philosophy
 
-- **Beginner-Friendly**: Simple commands for common use cases (`./run_planner.py -d domain.pddl -p problem.pddl`)
+- **Beginner-Friendly**: Simple commands for common use cases (`./run_planner.py domain.pddl problem.pddl`)
 - **Expert-Friendly**: Full access to all planner parameters via pass-through arguments and configuration files
 - **Transparent Output**: Direct planner output to terminal by default (no forced processing)
-- **Configuration-Driven**: Single `planners.yaml` specification file documents all planner capabilities
+- **Configuration-Driven**: `planner_configurations.yaml` documents planner execution configurations
 - **Flexible**: Predefined configurations for common scenarios + custom parameter support
 
 ### Planner Specifications
 
-All planner capabilities are documented in `planners.yaml`:
+Planner execution options are documented in `planner_configurations.yaml`:
 ```yaml
 planners:
   symk:
@@ -251,13 +251,13 @@ View the full specification:
 
 ```bash
 # Simplest form - uses defaults
-./run_planner.py -d <domain.pddl> -p <problem.pddl>
+./run_planner.py <domain.pddl> <problem.pddl>
 
 # Specify planner and configuration
-./run_planner.py -d <domain.pddl> -p <problem.pddl> --planner <name> --config <config>
+./run_planner.py <domain.pddl> <problem.pddl> -p <name> --config <config>
 
 # Auto-select best planner for domain
-./run_planner.py -d <domain.pddl> -p <problem.pddl> --auto-planner
+./run_planner.py <domain.pddl> <problem.pddl> --auto-planner
 ```
 
 ### Build Status
@@ -290,22 +290,22 @@ Each planner has carefully defined configurations accessible via `--config`:
 
 ```bash
 # Fast Downward - optimal planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward --config optimal-lmcut
+./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
 
 # SymK - top-k planning (find 5 diverse best plans)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5
+./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
 
 # SymK - top-q planning (plans within 1.5x optimal cost)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topq-3-q1.5
+./run_planner.py domain.pddl problem.pddl -p symk --config topq-3-q1.5
 
 # SymK - loopless planning (no state revisit)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config loopless-3
+./run_planner.py domain.pddl problem.pddl -p symk --config loopless-3
 
 # OPTIC - first solution (stop after first plan found)
-./run_planner.py -d domain.pddl -p problem.pddl --planner optic --config first-solution
+./run_planner.py domain.pddl problem.pddl -p optic --config first-solution
 
 # ENHSP - numeric optimal planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner enhsp --config optimal-hrmax
+./run_planner.py domain.pddl problem.pddl -p enhsp --config optimal-hrmax
 ```
 
 List all available configurations for a planner:
@@ -321,16 +321,16 @@ Send planner-specific parameters directly by using `--` separator:
 
 ```bash
 # OPTIC: stop at first solution
-./run_planner.py -d domain.pddl -p problem.pddl --planner optic -- -b
+./run_planner.py domain.pddl problem.pddl -p optic -- -b
 
 # OPTIC: use greedy FF heuristic
-./run_planner.py -d domain.pddl -p problem.pddl --planner optic -- -g
+./run_planner.py domain.pddl problem.pddl -p optic -- -g
 
 # SymK: specify output file
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk -- --plan-file plans.out
+./run_planner.py domain.pddl problem.pddl -p symk -- --plan-file plans.out
 
 # SymK: custom search command (overrides --config)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk -- \
+./run_planner.py domain.pddl problem.pddl -p symk -- \
   --search "symk_bw(simple=true, plan_selection=top_k(num_plans=3))"
 ```
 
@@ -342,19 +342,19 @@ By default, planner output goes directly to terminal (passthrough mode):
 
 ```bash
 # Passthrough mode (default) - full planner output
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward
+./run_planner.py domain.pddl problem.pddl -p downward
 
 # Compact mode - selected plan for single-plan runs, all extracted plans for multi-plan runs
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward --output-format compact
+./run_planner.py domain.pddl problem.pddl -p downward --output-format compact
 
 # JSON mode - structured selected plan plus extracted plan metadata
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward --output-format json
+./run_planner.py domain.pddl problem.pddl -p downward --output-format json
 
 # Multi-plan compact output (e.g. SymK top-k)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5 --output-format compact
+./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --output-format compact
 
 # Save full results to file (JSON)
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward -o results.json
+./run_planner.py domain.pddl problem.pddl -p downward -o results.json
 ```
 
 `run_planner.py` now separates raw planner execution from extracted plan reporting:
@@ -398,7 +398,7 @@ Show the exact planner command without running it:
 
 ```bash
 # Dry-run prints the exact subprocess command and working directory
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5 --dry-run
+./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --dry-run
 ```
 
 #### 5. **Domain Analysis & Auto-Selection**
@@ -407,144 +407,164 @@ Automatically select the best planner for a domain:
 
 ```bash
 # Analyze domain requirements
-./run_planner.py -d domain.pddl --analyze-only
+./run_planner.py domain.pddl --analyze
 
 # Auto-select and run
-./run_planner.py -d domain.pddl -p problem.pddl --auto-planner
+./run_planner.py domain.pddl problem.pddl --auto-planner
 
 # Prefer fast satisficing over optimal
-./run_planner.py -d domain.pddl -p problem.pddl --auto-planner --prefer-fast
+./run_planner.py domain.pddl problem.pddl --auto-planner --prefer-fast
 ```
+
+The analyzer now uses a transparent YAML capability file at `planner_capabilities.yaml`.
+You can tune strictness, requirement aliases, planner feature support, and ordered
+priority lists without changing Python code.
+
+```bash
+# Inspect transparent output including catalog info and per-planner compatibility trace
+./pddl_analyzer.py domain.pddl --json
+```
+
+Catalog examples:
+- Strict mode: set `compatibility.mode` to `all-missing` to require zero missing requirements.
+- Relaxed mode: set `compatibility.mode` to `critical-only` so only critical requirements block strict compatibility.
+- Established priority: edit `priority.established_order`.
+- Approach-specific priority: edit `priority.approach_order`.
+- Planner capabilities: edit `planners.<planner>.supported_requirements` and metadata.
 
 ### Comprehensive Examples
 
 #### Classical Planning
 ```bash
 # FF - classic forward-chaining planner
-./run_planner.py -d domain.pddl -p problem.pddl --planner ff
+./run_planner.py domain.pddl problem.pddl -p ff
 
 # Fast Downward - modern optimal planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward --config optimal-lmcut
+./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
 
 # Fast Downward - satisficing (faster)
-./run_planner.py -d domain.pddl -p problem.pddl --planner downward --config satisficing-ff
+./run_planner.py domain.pddl problem.pddl -p downward --config satisficing-ff
 ```
 
 #### Optimal & Top-K Planning (SymK)
 ```bash
 # Single optimal plan
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk
+./run_planner.py domain.pddl problem.pddl -p symk
 
 # Top 5 diverse best plans
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5
+./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
 
 # Top 5 diverse best plans with extracted compact output
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5 --output-format compact
+./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --output-format compact
 
 # Top 3 plans within 1.5x optimal cost
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topq-3-q1.5
+./run_planner.py domain.pddl problem.pddl -p symk --config topq-3-q1.5
 
 # Top 3 loopless plans (no state revisit)
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config loopless-3
+./run_planner.py domain.pddl problem.pddl -p symk --config loopless-3
 
 # Backward search instead of bidirectional
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk -- --search "sym_bw()"
+./run_planner.py domain.pddl problem.pddl -p symk -- --search "sym_bw()"
 
 # Custom search with unordered selector
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk -- \
+./run_planner.py domain.pddl problem.pddl -p symk -- \
   --search "symk_bd(plan_selection=unordered(num_plans=10))"
 ```
 
 #### Temporal Planning
 ```bash
 # OPTIC - optimal temporal planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner optic
+./run_planner.py domain.pddl problem.pddl -p optic
 
 # OPTIC - first feasible solution (faster)
-./run_planner.py -d domain.pddl -p problem.pddl --planner optic --config first-solution
+./run_planner.py domain.pddl problem.pddl -p optic --config first-solution
 
 # POPF - satisficing temporal planning (widely used in ROS)
-./run_planner.py -d domain.pddl -p problem.pddl --planner popf
+./run_planner.py domain.pddl problem.pddl -p popf
 
 # TFD - temporal planning with heuristics
-./run_planner.py -d domain.pddl -p problem.pddl --planner tfd
+./run_planner.py domain.pddl problem.pddl -p tfd
 ```
 
 #### Numeric Planning
 ```bash
 # ENHSP - numeric satisficing
-./run_planner.py -d domain.pddl -p problem.pddl --planner enhsp --config satisficing-hmrp
+./run_planner.py domain.pddl problem.pddl -p enhsp --config satisficing-hmrp
 
 # ENHSP - numeric optimal
-./run_planner.py -d domain.pddl -p problem.pddl --planner enhsp --config optimal-hrmax
+./run_planner.py domain.pddl problem.pddl -p enhsp --config optimal-hrmax
 
 # Metric-FF - numeric STRIPS planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner metric-ff
+./run_planner.py domain.pddl problem.pddl -p metric-ff
 ```
 
 #### Special Features
 ```bash
 # Conformant planning (incomplete information)
-./run_planner.py -d domain.pddl -p problem.pddl --planner conformant-ff
+./run_planner.py domain.pddl problem.pddl -p conformant-ff
 
 # Contingent planning (with sensing)
-./run_planner.py -d domain.pddl -p problem.pddl --planner contingent-ff
+./run_planner.py domain.pddl problem.pddl -p contingent-ff
 
 # Lifted planning (large object domains)
-./run_planner.py -d domain.pddl -p problem.pddl --planner powerlifted
+./run_planner.py domain.pddl problem.pddl -p powerlifted
 
 # SAT-based planning
-./run_planner.py -d domain.pddl -p problem.pddl --planner madagascar
+./run_planner.py domain.pddl problem.pddl -p madagascar
 ```
 
 ### Complete Command Reference
 
 ```
 REQUIRED ARGUMENTS:
-  -d, --domain FILE           Domain PDDL file (required for execution)
-  -p, --problem FILE          Problem PDDL file (required for execution)
+  domain FILE                 Domain PDDL file (required for analysis/execution)
+  problem FILE                Problem PDDL file (required for planner execution)
 
 PLANNER SELECTION (optional, uses auto-select if not provided):
-  --planner NAME              Specific planner to use
-  --auto-planner              Auto-select best planner based on domain
-  --prefer-optimal            Prefer optimal planners (default for auto-select)
-  --prefer-fast               Prefer satisficing planners for auto-select
+  -p, --planner NAME          Specific planner to use
+  -A, --auto-planner          Auto-select best planner based on domain
+  -O, --prefer-optimal        Prefer optimal planners (default for auto-select)
+  -F, --prefer-fast           Prefer satisficing planners for auto-select
 
 CONFIGURATION (optional, uses planner default if not provided):
-  --config NAME               Predefined configuration (e.g., optimal-bd, topk-5)
-  --list-configs PLANNER      Show all configs for a planner
+  -c, --config NAME           Predefined configuration (e.g., optimal-bd, topk-5)
+  -L, --list-configs PLANNER  Show all configs for a planner
 
 PLANNER-SPECIFIC ARGUMENTS:
   -- ARGS                     Pass arguments directly to the planner
                               Example: ./run_planner.py ... -- -b --flag
 
 EXECUTION OPTIONS:
-  --timeout INT               Timeout in seconds (default: 300)
-  --dry-run                   Show the exact planner command without running it
+  -t, --timeout INT           Timeout in seconds (default: 300)
+  -d, --dry-run               Show the exact planner command without running it
   -o, --output FILE           Save JSON results to file
 
 OUTPUT HANDLING:
-  --output-format FORMAT      passthrough (default), compact, or json
+  -f, --output-format FORMAT  passthrough (default), compact, or json
                               compact/json use extracted plans from stdout and plan files when available
+  -q, --no-live-output        Disable live streaming while planner runs
   --verbose, -v               Verbose domain analysis output
 
 INFORMATION:
-  --list-planners             Show all available planners
-  --analyze-only              Only analyze domain, don't run planner
+  -l, --list-planners         Show all available planners
+  -a, --analyze               Analyze domain requirements and show compatible planners
   --help, -h                  Show this help message
 
 EXAMPLES:
   # Simple usage
-  ./run_planner.py -d domain.pddl -p problem.pddl
+  ./run_planner.py domain.pddl problem.pddl
+
+  # Short-form aliases for common options
+  ./run_planner.py domain.pddl problem.pddl -p symk -c topk-5 -t 120
 
   # With specific configuration
-  ./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config topk-5
+  ./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
 
   # With planner-specific arguments
-  ./run_planner.py -d domain.pddl -p problem.pddl --planner optic -- -b
+  ./run_planner.py domain.pddl problem.pddl -p optic -- -b
 
   # Auto-select and show the exact command without running
-  ./run_planner.py -d domain.pddl -p problem.pddl --auto-planner --dry-run
+  ./run_planner.py domain.pddl problem.pddl --auto-planner --dry-run
 ```
 
 ### Understanding Planner Output
@@ -580,7 +600,7 @@ Timeout:           300 seconds
 
 #### Adding Custom Configurations
 
-Edit `planners.yaml` to add new configurations:
+Edit `planner_configurations.yaml` to add new configurations:
 
 ```yaml
 planners:
@@ -593,7 +613,7 @@ planners:
 
 Then use it:
 ```bash
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --config my-custom
+./run_planner.py domain.pddl problem.pddl -p symk --config my-custom
 ```
 
 #### Batch Testing
@@ -602,11 +622,11 @@ Then use it:
 # Test a planner on multiple problems
 for problem in benchmarks/*/p*.pddl; do
   echo "Testing: $problem"
-  ./run_planner.py -d benchmarks/domain.pddl -p "$problem" --planner downward
+  ./run_planner.py benchmarks/domain.pddl "$problem" -p downward
 done
 
 # Parse results with --output-format json
-./run_planner.py -d domain.pddl -p problem.pddl --planner symk --output-format json -o result.json
+./run_planner.py domain.pddl problem.pddl -p symk --output-format json -o result.json
 jq '.plan' result.json                  # Selected plan text
 jq '.plan_count' result.json            # Number of extracted plans
 jq '.plans[0].actions' result.json     # First extracted plan as action lines
@@ -619,7 +639,7 @@ jq '.plans[0].actions' result.json     # First extracted plan as action lines
 # Collect statistics across multiple planners
 
 for planner in ff downward symk optic; do
-  ./run_planner.py -d domain.pddl -p problem.pddl --planner "$planner" \
+  ./run_planner.py domain.pddl problem.pddl -p "$planner" \
     --output-format json -o "result_$planner.json"
   
   success=$(jq '.success' "result_$planner.json")
@@ -686,7 +706,7 @@ Test results include:
 2. **TFD: Requires `solutionFile` argument when called directly**
    ```
    TFD native usage: downward/tfd <domainFile> <problemFile> <solutionFile> [config]
-   Repository behavior: `run_planner.py --planner tfd` passes a temp solution file automatically
+  Repository behavior: `run_planner.py -p tfd` passes a temp solution file automatically
    Plan extraction: when TFD emits multiple plan files (.1, .2, ...), the latest numeric file is selected
    ```
 
@@ -719,9 +739,9 @@ Test results include:
 
 ```bash
 # Test a specific planner
-./run_planner.py -d benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl \
-                  -p benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl \
-                  --planner ff
+./run_planner.py benchmarks/ipc-1998/domains/gripper-round-1-strips/domain.pddl \
+                 benchmarks/ipc-1998/domains/gripper-round-1-strips/instances/instance-1.pddl \
+                 -p ff
 
 # Run test suite on working planners only
 ./tests/run_tests.py --planners ff downward madagascar conformant-ff enhsp optic tfd
@@ -797,10 +817,10 @@ cd benchmarks/ipc-domains/ipc-2000/domains/logistics
 
 # Test TFD on Temporal Benchmarks
 cd planners/tfd/benchmarks/elevators-strips
-../../../run_planner.py -d domain.pddl -p p01.pddl --planner tfd
+../../../run_planner.py domain.pddl p01.pddl -p tfd
 
 # Optional: pass native TFD config string (solution path is still internal)
-../../../run_planner.py -d domain.pddl -p p01.pddl --planner tfd --config "y+Y+a+e+r+O+1+C+1+b"
+../../../run_planner.py domain.pddl p01.pddl -p tfd --config "y+Y+a+e+r+O+1+C+1+b"
 ```
 
 ## Usage

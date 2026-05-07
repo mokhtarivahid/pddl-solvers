@@ -1,0 +1,335 @@
+# Planner capability catalog for pddl_analyzer.py
+#
+# Purpose:
+# - Keep planner compatibility transparent and editable.
+# - Control strict vs relaxed matching without changing Python code.
+# - Prioritize planners using: reliability first, then approach-specific ordering, then global order.
+#
+# Prioritization (in order):
+#   1. Reliability (high → medium → low) - ensures stable planners are preferred
+#   2. Approach-specific priority list - e.g., Classical, Temporal, Numeric
+#   3. Established global priority - fallback for planners not in approach lists
+#
+# Compatibility matching:
+# - mode: "critical-only" accepts planners if no critical requirement is missing.
+# - mode: "all-missing" accepts planners only if no requirement is missing.
+compatibility:
+  mode: critical-only
+
+  # Requirement aliases normalized before matching.
+  aliases:
+    fluents: numeric-fluents
+    metrics: numeric-fluents
+    object-fluents: numeric-fluents
+    action-costs: numeric-fluents
+
+  # If planner supports :adl, these are treated as implied.
+  adl_implied_requirements:
+    - strips
+    - typing
+    - disjunctive-preconditions
+    - equality
+    - quantified-preconditions
+    - conditional-effects
+
+  # Missing any of these blocks strict compatibility in critical-only mode.
+  critical_requirements:
+    - durative-actions
+    - numeric-fluents
+    - continuous-effects
+    - derived-predicates
+    - preferences
+    - timed-initial-literals
+    - probabilistic-effects
+
+priority:
+  # Global default ordering, most established first.
+  established_order:
+    - downward
+    - symk
+    - ff
+    - metric-ff
+    - enhsp
+    - optic
+    - popf
+    - tfd
+    - lpg
+    - madagascar
+    - powerlifted
+    - ff-x
+    - vhpop
+    - conformant-ff
+    - contingent-ff
+    - probabilistic-ff
+    - nextflap
+
+  # Optional approach-specific ordering. These planners are preferred first.
+  approach_order:
+    Classical Planning: [downward, symk, ff, madagascar, powerlifted]
+    ADL Planning: [downward, symk, ff-x, ff, lpg]
+    Numeric Planning: [enhsp, metric-ff, downward, lpg]
+    Temporal Planning: [optic, popf, tfd, lpg]
+    Temporal-Numeric Planning: [optic, popf, tfd, lpg]
+    Probabilistic Planning: [probabilistic-ff, contingent-ff, conformant-ff]
+
+# Optional runtime behavior overrides and suppression blocks.
+#
+# planner_overrides: Override specific runtime behavior flags for planners.
+#   - To modify planner CAPABILITIES (add/remove requirements), edit the planner entry above.
+#   - This section only controls runtime behavior: optimization, temporal support, temporal-only constraint.
+#   - Leave empty for default behavior.
+#   Examples:
+#     ff:
+#       optimization: true  # Allow FF to report optimization capability
+#     enhsp:
+#       temporal: true      # Treat ENHSP as supporting temporal planning (use cautiously!)
+#     tfd:
+#       temporal_only: false  # Allow TFD on classical domains
+#
+planner_overrides: {}
+
+# disabled_planners: Suppress planners from being selected.
+#   - Use this to exclude planners that are broken, unavailable, or unsuitable in your environment.
+#   Examples:
+#     - probabilistic-ff  # Disable probabilistic planning support
+#     - nextflap          # Exclude experimental planners
+#
+disabled_planners: []
+
+# Planner capability definitions used by the analyzer.
+planners:
+  # Planner definitions with supported capabilities and reliability ratings.
+  #
+  # Fields per planner:
+  #   - name: Display name
+  #   - pddl_version: Supported PDDL version
+  #   - description: Short description
+  #   - notes: Additional context or limitations
+  #   - performance_category: low, medium, high - based on typical speed/quality
+  #   - reliability: low, medium, high - stability and success rate (used for prioritization!)
+  #   - optimization: true/false - whether planner supports optimal planning
+  #   - temporal: true/false - whether planner supports temporal planning
+  #   - temporal_only: true/false - whether planner should only be used for temporal domains
+  #   - approach_tags: Classification tags (classical, temporal, numeric, etc.)
+  #   - supported_requirements: PDDL requirements the planner can handle
+  #
+  downward:
+    name: Fast Downward
+    pddl_version: PDDL 2.2
+    description: State-of-the-art classical planner with strong performance.
+    notes: Supports most PDDL 1.2 and 2.1 features except temporal planning.
+    performance_category: high
+    reliability: high
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, adl, numeric, optimal, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, numeric-fluents, fluents, derived-predicates]
+
+  ff:
+    name: FF (Fast Forward)
+    pddl_version: PDDL 1.2
+    description: Classic heuristic search planner, fast and reliable.
+    notes: Good for basic STRIPS and ADL planning.
+    performance_category: high
+    reliability: high
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, adl-lite, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, conditional-effects]
+
+  metric-ff:
+    name: Metric-FF
+    pddl_version: PDDL 2.1
+    description: Extension of FF with numeric fluent support.
+    notes: Handles numeric planning problems.
+    performance_category: medium
+    reliability: high
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [numeric, classical, optimal, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, numeric-fluents, fluents, conditional-effects]
+
+  optic:
+    name: OPTIC
+    pddl_version: PDDL 2.1+
+    description: Advanced temporal planner with continuous effects.
+    notes: Excellent for temporal and numeric planning.
+    performance_category: high
+    optimization: true
+    temporal: true
+    temporal_only: false
+    reliability: high
+    approach_tags: [temporal, numeric, optimal, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, durative-actions, durative-inequalities, numeric-fluents, continuous-effects, derived-predicates, preferences]
+
+  popf:
+    name: POPF
+    pddl_version: PDDL 2.1
+    description: Temporal planner, predecessor to OPTIC.
+    notes: Good for basic temporal planning.
+    performance_category: medium
+    optimization: false
+    temporal: true
+    temporal_only: false
+    reliability: medium
+    approach_tags: [temporal, numeric, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, durative-actions, durative-inequalities, numeric-fluents, derived-predicates]
+
+  enhsp:
+    name: ENHSP
+    pddl_version: PDDL 2.1+
+    description: Heuristic search planner for expressive numeric domains.
+    notes: Specialized in numeric planning; does not reliably support durative actions.
+    performance_category: high
+    reliability: medium
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [numeric, optimal, satisficing, constraints]
+    supported_requirements: [strips, typing, negative-preconditions, numeric-fluents, fluents, continuous-effects, constraints]
+
+  powerlifted:
+    name: PowerLifted
+    pddl_version: PDDL 1.2+
+    description: Lifted classical planner using first-order representations.
+    notes: Lifted STRIPS-like planning; no conditional effects, quantifiers, or axioms.
+    performance_category: medium
+    reliability: medium
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, lifted, satisficing, optimal]
+    supported_requirements: [strips, typing, negative-preconditions, equality]
+
+  symk:
+    name: SymK
+    pddl_version: PDDL 1.2
+    description: Symbolic planner using binary decision diagrams.
+    notes: Supports top-k/top-q planning; supports conditional effects and derived predicates.
+    performance_category: medium
+    reliability: high
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, adl, optimal, topk]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, derived-predicates]
+
+  vhpop:
+    name: VHPOP
+    pddl_version: PDDL 1.2+
+    description: Partial-order causal-link planner.
+    notes: Academic planner, good for small problems.
+    performance_category: low
+    reliability: medium
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, adl, partial-order, optimal]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl]
+
+  conformant-ff:
+    name: Conformant-FF
+    pddl_version: PDDL 1.2
+    description: Planner for conformant (uncertainty) planning.
+    notes: Specialized for planning under uncertainty.
+    performance_category: low
+    reliability: low
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, uncertainty, conformant]
+    supported_requirements: [strips, typing, negative-preconditions]
+
+  contingent-ff:
+    name: Contingent-FF
+    pddl_version: PDDL 1.2
+    description: Planner for contingent planning with observations.
+    notes: Handles conditional planning with observations.
+    performance_category: low
+    reliability: low
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, uncertainty, contingent]
+    supported_requirements: [strips, typing, negative-preconditions]
+
+  probabilistic-ff:
+    name: Probabilistic-FF
+    pddl_version: PDDL 1.2+ / PPDDL extensions
+    description: Probabilistic planning with weighted model counting.
+    notes: Supports probabilistic initial belief states and probabilistic effects.
+    performance_category: low
+    reliability: high
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [probabilistic, uncertainty, adl]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, probabilistic-effects]
+
+  tfd:
+    name: TFD (Temporal Fast Downward)
+    pddl_version: PDDL 2.1
+    description: Temporal extension of Fast Downward.
+    notes: Temporal planning based on Fast Downward.
+    performance_category: medium
+    optimization: true
+    temporal: true
+    temporal_only: true
+    reliability: high
+    approach_tags: [temporal, numeric, optimal, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, durative-actions, durative-inequalities, numeric-fluents, derived-predicates]
+
+  madagascar:
+    name: Madagascar
+    pddl_version: PDDL 1.2
+    description: SAT-based planner using compilation to SAT.
+    notes: Uses SAT solvers for planning.
+    performance_category: medium
+    reliability: medium
+    optimization: true
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, sat, optimal, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, conditional-effects]
+
+  nextflap:
+    name: NextFLAP
+    pddl_version: PDDL 1.2
+    description: Learning-based planner.
+    notes: Experimental learning-based approach.
+    performance_category: medium
+    reliability: low
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, hybrid]
+    supported_requirements: [strips, typing, negative-preconditions]
+
+  ff-x:
+    name: FF-X
+    pddl_version: PDDL 2.1 (derived predicates)
+    description: FF variant with support for derived predicates (axioms).
+    notes: Handles ADL and PDDL 2.1 derived predicates (axioms).
+    performance_category: medium
+    reliability: high
+    optimization: false
+    temporal: false
+    temporal_only: false
+    approach_tags: [classical, adl, derived-predicates, satisficing]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, derived-predicates]
+
+  lpg:
+    name: LPG-td
+    pddl_version: PDDL 2.2
+    description: Local search planner supporting temporal, numeric, derived predicates and timed initial literals.
+    notes: "IPC award-winning local search planner for expressive PDDL 2.2 domains. Note: reliability can be lower on complex domains."
+    performance_category: medium
+    optimization: false
+    temporal: true
+    temporal_only: false
+    reliability: medium
+    approach_tags: [temporal, numeric, classical, adl, satisficing, local-search]
+    supported_requirements: [strips, typing, negative-preconditions, durative-actions, durative-inequalities, numeric-fluents, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, derived-predicates, timed-initial-literals]

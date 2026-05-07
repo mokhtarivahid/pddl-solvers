@@ -13,6 +13,8 @@ import argparse
 import os
 import sys
 import subprocess
+import select
+import signal
 import tempfile
 import shutil
 import json
@@ -24,27 +26,28 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Import the PDDL analyzer and planner specification
+# Import the PDDL analyzer and planner configurations
 from pddl_analyzer import PDDLAnalyzer, PDDLRequirementsParser, PlannerCapabilityDatabase
-from planner_spec import PlannerSpecification
+from planner_configurations import PlannerConfigurations
 
 
 class PlannerRunner:
     """Unified runner for multiple PDDL planners."""
     
-    def __init__(self, repo_root: str, spec_file: str = None):
+    def __init__(self, repo_root: str, spec_file: str = None, live_output: bool = True):
         self.repo_root = Path(repo_root)
         self.planners_dir = self.repo_root / "planners"
         self.temp_dir = None
+        self.live_output = live_output
         
         # Initialize PDDL analyzer
         self.analyzer = PDDLAnalyzer(str(self.repo_root))
         
-        # Load planner specification
+        # Load planner execution configurations
         if spec_file is None:
-            spec_file = self.repo_root / "planners.yaml"
+            spec_file = self.repo_root / "planner_configurations.yaml"
         try:
-            self.spec = PlannerSpecification(str(spec_file))
+            self.spec = PlannerConfigurations(str(spec_file))
         except Exception as e:
             print(f"Warning: Could not load planner specification: {e}", file=sys.stderr)
             self.spec = None
@@ -142,6 +145,113 @@ class PlannerRunner:
         if isinstance(stream, bytes):
             return stream.decode(errors="replace")
         return str(stream)
+
+    def _run_subprocess(self, cmd: List[str], cwd: Optional[Path] = None,
+                        timeout: Optional[int] = None, env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
+        """Run command while optionally streaming stdout/stderr live and collecting both."""
+        if not self.live_output:
+            return subprocess.run(
+                cmd,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+
+        process = subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+
+        out_chunks: List[str] = []
+        err_chunks: List[str] = []
+        streams = {
+            process.stdout.fileno(): (process.stdout, out_chunks, sys.stdout),
+            process.stderr.fileno(): (process.stderr, err_chunks, sys.stderr),
+        }
+        blank_line_runs: Dict[int, int] = {fd: 0 for fd in streams}
+
+        start = time.time()
+        while streams:
+            if timeout is not None and (time.time() - start) >= timeout:
+                process.kill()
+                process.wait()
+                raise subprocess.TimeoutExpired(
+                    cmd=cmd,
+                    timeout=timeout,
+                    output="".join(out_chunks),
+                    stderr="".join(err_chunks),
+                )
+
+            poll_timeout = 0.2
+            if timeout is not None:
+                remaining = max(0.0, timeout - (time.time() - start))
+                poll_timeout = min(poll_timeout, remaining)
+
+            ready, _, _ = select.select(list(streams.keys()), [], [], poll_timeout)
+            if not ready:
+                if process.poll() is not None:
+                    break
+                continue
+
+            for fd in ready:
+                stream, collected, sink = streams[fd]
+                line = stream.readline()
+                if line == "":
+                    del streams[fd]
+                    continue
+                collected.append(line)
+
+                # Some planners emit long runs of blank/progress lines in live mode.
+                # Keep raw output for parsing, but compact terminal rendering.
+                if line.strip() == "":
+                    blank_line_runs[fd] = blank_line_runs.get(fd, 0) + 1
+                else:
+                    blank_line_runs[fd] = 0
+
+                if blank_line_runs[fd] > 3:
+                    continue
+
+                try:
+                    sink.write(line)
+                    sink.flush()
+                except BrokenPipeError:
+                    # Downstream consumer closed (e.g., piping to head).
+                    # Keep collecting output without crashing the planner run.
+                    pass
+
+        if process.stdout is not None:
+            remaining_out = process.stdout.read() or ""
+            if remaining_out:
+                out_chunks.append(remaining_out)
+                try:
+                    sys.stdout.write(remaining_out)
+                    sys.stdout.flush()
+                except BrokenPipeError:
+                    pass
+        if process.stderr is not None:
+            remaining_err = process.stderr.read() or ""
+            if remaining_err:
+                err_chunks.append(remaining_err)
+                try:
+                    sys.stderr.write(remaining_err)
+                    sys.stderr.flush()
+                except BrokenPipeError:
+                    pass
+
+        returncode = process.wait()
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=returncode,
+            stdout="".join(out_chunks),
+            stderr="".join(err_chunks),
+        )
 
     def _compact_blank_runs(self, text: str, max_consecutive_newlines: int = 3) -> str:
         """Reduce excessive blank-line runs in planner output for readability."""
@@ -741,12 +851,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
-                cmd, 
+            result = self._run_subprocess(
+                cmd,
                 cwd=downward_dir,
-                capture_output=True, 
-                text=True, 
-                timeout=timeout + 30
+                timeout=timeout + 30,
             )
             
             runtime = time.time() - start_time
@@ -791,12 +899,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=enhsp_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout + 30
+                timeout=timeout + 30,
             )
             
             runtime = time.time() - start_time
@@ -840,12 +946,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=temp_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1006,12 +1110,10 @@ class PlannerRunner:
             
             start_time = time.time()
             try:
-                result = subprocess.run(
+                result = self._run_subprocess(
                     cmd,
-                    cwd=str(executable.parent),  # Use executable's directory as cwd
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout
+                    cwd=executable.parent,  # Use executable's directory as cwd
+                    timeout=timeout,
                 )
                 
                 runtime = time.time() - start_time
@@ -1045,12 +1147,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=madagascar_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1090,12 +1190,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=vhpop_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1135,12 +1233,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=tfd_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1219,12 +1315,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=optic_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1272,13 +1366,11 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=popf_build_dir,
-                capture_output=True,
-                text=True,
                 timeout=timeout,
-                env=env
+                env=env,
             )
             
             runtime = time.time() - start_time
@@ -1322,12 +1414,10 @@ class PlannerRunner:
 
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=temp_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
 
             runtime = time.time() - start_time
@@ -1404,12 +1494,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=temp_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1450,12 +1538,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=powerlifted_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1508,12 +1594,10 @@ class PlannerRunner:
         
         start_time = time.time()
         try:
-            result = subprocess.run(
+            result = self._run_subprocess(
                 cmd,
                 cwd=symk_dir,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                timeout=timeout,
             )
             
             runtime = time.time() - start_time
@@ -1720,15 +1804,15 @@ def main():
                 epilog=textwrap.dedent("""
                 USAGE EXAMPLES:
                     # Basic usage with auto-selected planner
-                    %(prog)s -d domain.pddl -p problem.pddl
+                    %(prog)s domain.pddl problem.pddl
 
                     # Specific planner with predefined configuration
-                    %(prog)s -d domain.pddl -p problem.pddl --planner downward --config optimal-lmcut
-                    %(prog)s -d domain.pddl -p problem.pddl --planner symk --config topk-5
+                    %(prog)s domain.pddl problem.pddl -p downward --config optimal-lmcut
+                    %(prog)s domain.pddl problem.pddl -p symk --config topk-5
 
                     # With planner-specific arguments (after --)
-                    %(prog)s -d domain.pddl -p problem.pddl --planner optic -- -b
-                    %(prog)s -d domain.pddl -p problem.pddl --planner symk -- --plan-file output.plan
+                    %(prog)s domain.pddl problem.pddl -p optic -- -b
+                    %(prog)s domain.pddl problem.pddl -p symk -- --plan-file output.plan
 
                     # Show available options
                     %(prog)s --list-planners
@@ -1736,7 +1820,7 @@ def main():
                     %(prog)s --list-configs symk
 
                     # Dry run (shows the exact command without executing)
-                    %(prog)s -d domain.pddl -p problem.pddl --planner ff --dry-run
+                    %(prog)s domain.pddl problem.pddl -p ff --dry-run
 
                 NOTES:
                     - Configuration is optional (uses planner default if not specified)
@@ -1746,59 +1830,60 @@ def main():
                 """)
     )
     
-    parser.add_argument("-d", "--domain",
+    parser.add_argument("domain", nargs="?",
                        help="Path to PDDL domain file")
-    parser.add_argument("-p", "--problem",
+    parser.add_argument("problem", nargs="?",
                        help="Path to PDDL problem file")
     
-    parser.add_argument("--planner", 
+    parser.add_argument("-p", "--planner", 
                        choices=runner.get_available_planners(),
                        help="Planner to use (default: auto-selected based on domain requirements)")
     
-    parser.add_argument("--config", 
+    parser.add_argument("-c", "--config", 
                        help="Planner configuration name or planner-specific config string (optional)")
     
-    parser.add_argument("--timeout", type=int, default=300,
+    parser.add_argument("-t", "--timeout", type=int, default=300,
                        help="Timeout in seconds (default: 300)")
     
     parser.add_argument("-o", "--output",
                        help="Output file for results (JSON format, optional)")
 
     # Planner information options
-    parser.add_argument("--list-planners", action="store_true",
+    parser.add_argument("-l", "--list-planners", action="store_true",
                        help="List all available planners and exit")
     
-    parser.add_argument("--list-configs", metavar="PLANNER",
+    parser.add_argument("-L", "--list-configs", metavar="PLANNER",
                        help="List available configurations for a specific planner")
     
     # Analysis options
-    parser.add_argument("--analyze", action="store_true",
+    parser.add_argument("-a", "--analyze", action="store_true",
                        help="Analyze domain requirements and show compatible planners")
     
-    parser.add_argument("--analyze-only", action="store_true",
-                       help="Only analyze domain requirements, don't run planner")
-    
-    parser.add_argument("--auto-planner", action="store_true",
+    parser.add_argument("-A", "--auto-planner", action="store_true",
                        help="Auto-select best planner based on domain requirements (default if no --planner)")
     
-    parser.add_argument("--prefer-optimal", action="store_true", default=True,
+    parser.add_argument("-O", "--prefer-optimal", action="store_true", default=True,
                        help="Prefer optimal planners when auto-selecting (default)")
     
-    parser.add_argument("--prefer-fast", dest="prefer_optimal", action="store_false",
+    parser.add_argument("-F", "--prefer-fast", dest="prefer_optimal", action="store_false",
                        help="Prefer fast (satisficing) planners when auto-selecting")
     
     # Execution options
-    parser.add_argument("--dry-run", action="store_true",
+    parser.add_argument("-d", "--dry-run", action="store_true",
                        help="Show the exact planner command without running it")
     
-    parser.add_argument("--output-format", choices=["passthrough", "compact", "json"], 
+    parser.add_argument("-f", "--output-format", choices=["passthrough", "compact", "json"], 
                        default="passthrough",
                        help="Output format: passthrough (default), compact, or json")
+
+    parser.add_argument("-q", "--no-live-output", action="store_true",
+                       help="Disable live streaming of planner stdout/stderr while running")
     
     parser.add_argument("--verbose", "-v", action="store_true",
                        help="Verbose domain analysis output")
     
     args = parser.parse_args(argv)
+    runner.live_output = not args.no_live_output
     
     # Handle list commands
     if args.list_planners:
@@ -1833,28 +1918,9 @@ def main():
             print(f"Use --list-planners to see available planners")
         return 0
     
-    # Handle analysis-only mode 
-    if args.analyze_only:
-        if not args.domain:
-            parser.error("Domain file (-d/--domain) is required for analysis")
-        
-        try:
-            analysis = runner.analyze_domain(args.domain)
-            runner.print_analysis(analysis, args.verbose)
-            
-            if args.output:
-                with open(args.output, 'w') as f:
-                    json.dump(analysis, f, indent=2)
-                print(f"\nAnalysis results saved to: {args.output}")
-                    
-            return 0
-        except Exception as e:
-            print(f"Error analyzing domain: {e}", file=sys.stderr)
-            return 1
-    
     # Validate required arguments for planner execution
     if not args.domain:
-        parser.error("Domain file (-d/--domain) is required")
+        parser.error("Domain file is required")
     
     # For analysis mode, only domain is required
     if args.analyze and not args.problem:
@@ -1868,7 +1934,7 @@ def main():
     
     # For planner execution, both domain and problem are required
     if not args.problem:
-        parser.error("Problem file (-p/--problem) is required for planner execution")
+        parser.error("Problem file is required for planner execution")
     
     try:
         # Validate inputs
@@ -1942,11 +2008,12 @@ def main():
         )
         
         # Default behavior: passthrough output mode
-        # Print planner output directly to terminal
+        # In live-output mode, planner stdout/stderr has already been streamed.
+        # Only print captured output when live streaming is disabled.
         if args.output_format == "passthrough":
-            if result['stdout']:
+            if not runner.live_output and result['stdout']:
                 print(result['stdout'])
-            if result['stderr']:
+            if not runner.live_output and result['stderr']:
                 print(result['stderr'], file=sys.stderr)
         
         # Additional formats for optional processing
@@ -1995,4 +2062,12 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if hasattr(signal, "SIGPIPE"):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    try:
+        sys.exit(main())
+    except BrokenPipeError:
+        # Graceful exit when output is piped and consumer closes early.
+        with suppress(Exception):
+            sys.stdout.close()
+        sys.exit(141)

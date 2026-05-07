@@ -29,10 +29,10 @@ Specialized collection of temporal planning benchmarks including:
 ### With run_planner.py
 ```bash
 # Classical planning with IPC domains
-./run_planner.py --planner ff -d benchmarks/ipc-domains/ipc-2000/blocks/domain.pddl -p benchmarks/ipc-domains/ipc-2000/blocks/instances/instance-1.pddl
+./run_planner.py benchmarks/ipc-domains/ipc-2000/blocks/domain.pddl benchmarks/ipc-domains/ipc-2000/blocks/instances/instance-1.pddl -p ff
 
 # Temporal planning with TFD benchmarks  
-./run_planner.py --planner tfd -d benchmarks/temporal-domains/modeltrain-numeric/domain.pddl -p benchmarks/temporal-domains/modeltrain-numeric/p01.pddl
+./run_planner.py benchmarks/temporal-domains/modeltrain-numeric/domain.pddl benchmarks/temporal-domains/modeltrain-numeric/p01.pddl -p tfd
 ```
 
 ### Domain Discovery

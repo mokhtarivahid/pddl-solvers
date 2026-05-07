@@ -1,8 +1,8 @@
 """
-Planner Specification Manager
+Planner Configurations Manager
 
-Loads and manages planner configurations from YAML specification file.
-Provides methods to query planner capabilities, configurations, and build commands.
+Loads and manages planner execution configurations from YAML specification file.
+Provides methods to query planner capabilities, configurations, and run commands.
 """
 
 import yaml
@@ -10,21 +10,21 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 
-class PlannerSpecification:
-    """Manages planner specifications from YAML file."""
+class PlannerConfigurations:
+    """Manages planner execution configurations from YAML file."""
     
     def __init__(self, spec_file: str = None):
         """
         Initialize specification loader.
         
         Args:
-            spec_file: Path to planners.yaml specification file.
-                      If None, looks for planners.yaml in repo root.
+            spec_file: Path to planner_configurations.yaml specification file.
+                      If None, looks for planner_configurations.yaml in repo root.
         """
         if spec_file is None:
-            # Look for planners.yaml in repo root
+            # Look for planner_configurations.yaml in repo root
             repo_root = Path(__file__).parent
-            spec_file = repo_root / "planners.yaml"
+            spec_file = repo_root / "planner_configurations.yaml"
         
         self.spec_file = Path(spec_file)
         self.spec = {}
@@ -161,3 +161,8 @@ class PlannerSpecification:
             if not planner_reqs or all(req in requirements for req in planner_reqs):
                 matching.append(planner_name)
         return matching
+
+
+# Backward compatibility aliases for older imports.
+PlannerExecutionSpecification = PlannerConfigurations
+PlannerSpecification = PlannerConfigurations

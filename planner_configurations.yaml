@@ -1,7 +1,10 @@
-# PDDL Solvers - Planner Specification File
+# PDDL Solvers - Planner Configurations File
 #
-# This file defines all available planners, their configurations, and parameters.
-# Use this as a single source of truth for planner capabilities and how to invoke them.
+# This file defines planner invocation details: executables, configurations,
+# and command-line parameters used by run_planner.py.
+#
+# Planner capability matching and recommendation logic is defined separately in
+# planner_capabilities.yaml and used by pddl_analyzer.py.
 #
 # Specification Format:
 # - Each planner has:
