@@ -1,0 +1,9 @@
+# Build artifacts
+*.o
+M
+Mp
+MpC
+
+# Runtime/profile artifacts
+gmon.out
+zPRINTDATE

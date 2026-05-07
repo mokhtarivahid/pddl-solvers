@@ -245,4 +245,4 @@ planners/*-backup/
 planners/*-broken-backup/
 
 # Ignore generated results files
-results.json
+/*.json

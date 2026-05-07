@@ -6,6 +6,8 @@
 # Usage: ./build_all.sh [options]
 #   -v, --verbose    Enable verbose output
 #   -c, --clean      Clean before building
+#   -C, --clean-only Clean selected planners and exit
+#   -p, --planner    Build/clean only specific planner(s), comma-separated or repeated
 #   -h, --help       Show this help message
 #
 
@@ -21,15 +23,63 @@ NC='\033[0m' # No Color
 # Configuration
 VERBOSE=false
 CLEAN=false
+CLEAN_ONLY=false
 BUILD_LOG="build_results.log"
 SUCCESS_COUNT=0
 FAILURE_COUNT=0
 SKIPPED_COUNT=0
 
+declare -a SELECTED_PLANNERS=()
+declare -a ALL_PLANNERS=(
+    "downward" "symk" "enhsp" "optic" "powerlifted" "popf" "nextflap" "tfd" "vhpop" "madagascar"
+    "ff" "ff-x" "metric-ff" "conformant-ff" "contingent-ff" "probabilistic-ff" "lpg"
+)
+
 # Arrays to track results
 declare -a SUCCESS_LIST=()
 declare -a FAILURE_LIST=()
 declare -a SKIPPED_LIST=()
+
+is_valid_planner() {
+    local candidate=$1
+    local planner
+    for planner in "${ALL_PLANNERS[@]}"; do
+        if [[ "$planner" == "$candidate" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+append_selected_planners() {
+    local raw=$1
+    local item
+    IFS=',' read -r -a _items <<< "$raw"
+    for item in "${_items[@]}"; do
+        item="${item// /}"
+        [[ -z "$item" ]] && continue
+        if ! is_valid_planner "$item"; then
+            echo "Unknown planner for --planner: $item"
+            echo "Valid planners: ${ALL_PLANNERS[*]}"
+            exit 1
+        fi
+        SELECTED_PLANNERS+=("$item")
+    done
+}
+
+is_selected_planner() {
+    local planner=$1
+    if [[ ${#SELECTED_PLANNERS[@]} -eq 0 ]]; then
+        return 0
+    fi
+    local selected
+    for selected in "${SELECTED_PLANNERS[@]}"; do
+        if [[ "$selected" == "$planner" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -42,12 +92,34 @@ while [[ $# -gt 0 ]]; do
             CLEAN=true
             shift
             ;;
+        -C|--clean-only)
+            CLEAN=true
+            CLEAN_ONLY=true
+            shift
+            ;;
+        -p|--planner)
+            if [[ -z "$2" ]]; then
+                echo "Missing value for $1"
+                exit 1
+            fi
+            append_selected_planners "$2"
+            shift 2
+            ;;
         -h|--help)
             echo "PDDL Solvers Build Script"
             echo "Usage: $0 [options]"
             echo "  -v, --verbose    Enable verbose output"
             echo "  -c, --clean      Clean before building"
+            echo "  -C, --clean-only Clean selected planners and exit"
+            echo "  -p, --planner    Build/clean only planner(s): comma-separated or repeated"
+            echo "                  Valid planners: ${ALL_PLANNERS[*]}"
             echo "  -h, --help       Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --clean"
+            echo "  $0 --clean --planner optic"
+            echo "  $0 --clean --planner ff,metric-ff --planner downward"
+            echo "  $0 --clean-only --planner popf"
             exit 0
             ;;
         *)
@@ -61,6 +133,81 @@ done
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: $1" >> "$BUILD_LOG"
+}
+
+clean_planner_artifacts() {
+    local planner_key=$1
+    local planner_dir="planners/$planner_key"
+
+    if [[ ! -d "$planner_dir" ]]; then
+        log_warning "$planner_key directory not found for cleaning: $planner_dir"
+        return 1
+    fi
+
+    log_info "Cleaning $planner_key..."
+
+    pushd "$planner_dir" >/dev/null || return 1
+
+    # Generic cleanup for Make-based projects.
+    if [[ -f Makefile || -f makefile ]]; then
+        make clean >/dev/null 2>&1 || true
+    fi
+
+    case "$planner_key" in
+        downward|symk)
+            rm -rf builds build >/dev/null 2>&1 || true
+            ;;
+        optic|popf)
+            rm -rf build CMakeFiles CMakeCache.txt cmake_install.cmake >/dev/null 2>&1 || true
+            ;;
+        enhsp)
+            rm -rf build target enhsp-dist out >/dev/null 2>&1 || true
+            rm -f enhsp.jar >/dev/null 2>&1 || true
+            ;;
+        madagascar)
+            rm -f M Mp MpC >/dev/null 2>&1 || true
+            ;;
+        tfd)
+            rm -f downward/tfd downward/preprocess downward/search/downward >/dev/null 2>&1 || true
+            ;;
+        lpg)
+            rm -f lpg lpg-probing >/dev/null 2>&1 || true
+            ;;
+        powerlifted)
+            rm -rf __pycache__ build dist >/dev/null 2>&1 || true
+            ;;
+        nextflap)
+            rm -rf build out target >/dev/null 2>&1 || true
+            ;;
+        vhpop)
+            rm -f vhpop ipc3-vhpop >/dev/null 2>&1 || true
+            ;;
+        ff|ff-x|metric-ff|conformant-ff|contingent-ff|probabilistic-ff)
+            rm -f ff >/dev/null 2>&1 || true
+            ;;
+    esac
+
+    popd >/dev/null || true
+    log_success "Cleaned $planner_key"
+    return 0
+}
+
+clean_selected_planners() {
+    local cleaned=0
+    local planner
+
+    for planner in "${ALL_PLANNERS[@]}"; do
+        if is_selected_planner "$planner"; then
+            clean_planner_artifacts "$planner" || true
+            cleaned=$((cleaned + 1))
+        fi
+    done
+
+    if [[ $cleaned -eq 0 ]]; then
+        log_warning "No planners selected for cleaning"
+    else
+        log_info "Cleaned planner targets: $cleaned"
+    fi
 }
 
 log_success() {
@@ -183,7 +330,7 @@ configure_submodule_ignores() {
 
         if ! grep -Fxq "$pattern" "$exclude_file"; then
             echo "$pattern" >> "$exclude_file"
-            ((configured++))
+            configured=$((configured + 1))
             if [[ $VERBOSE == true ]]; then
                 echo "  added $repo_path -> $pattern"
             fi
@@ -244,6 +391,66 @@ configure_submodule_ignores() {
     fi
 }
 
+# Mark tracked generated files as skip-worktree locally so clean/rebuild cycles
+# do not appear as deletions in git status.
+configure_local_skip_worktree() {
+    log_info "Configuring local skip-worktree rules for generated planner files..."
+
+    local configured=0
+    local rel_path
+    local tracked_state
+
+    local skip_files=(
+        "planners/ff/lex.fct_pddl.c"
+        "planners/ff/lex.ops_pddl.c"
+        "planners/ff/scan-fct_pddl.tab.c"
+        "planners/ff/scan-ops_pddl.tab.c"
+        "planners/ff-x/lex.fct_pddl.c"
+        "planners/ff-x/lex.ops_pddl.c"
+        "planners/ff-x/scan-fct_pddl.tab.c"
+        "planners/ff-x/scan-ops_pddl.tab.c"
+        "planners/metric-ff/lex.fct_pddl.c"
+        "planners/metric-ff/lex.ops_pddl.c"
+        "planners/metric-ff/scan-fct_pddl.tab.c"
+        "planners/metric-ff/scan-ops_pddl.tab.c"
+        "planners/conformant-ff/lex.fct_pddl.c"
+        "planners/conformant-ff/lex.ops_pddl.c"
+        "planners/conformant-ff/scan-fct_pddl.tab.c"
+        "planners/conformant-ff/scan-ops_pddl.tab.c"
+        "planners/contingent-ff/lex.fct_pddl.c"
+        "planners/contingent-ff/lex.ops_pddl.c"
+        "planners/contingent-ff/scan-fct_pddl.tab.c"
+        "planners/contingent-ff/scan-ops_pddl.tab.c"
+        "planners/probabilistic-ff/lex.fct_pddl.c"
+        "planners/probabilistic-ff/lex.ops_pddl.c"
+        "planners/probabilistic-ff/scan-fct_pddl.tab.c"
+        "planners/probabilistic-ff/scan-ops_pddl.tab.c"
+        "planners/madagascar/parser.tab.c"
+        "planners/madagascar/parser.tab.h"
+    )
+
+    for rel_path in "${skip_files[@]}"; do
+        if ! git ls-files --error-unmatch "$rel_path" >/dev/null 2>&1; then
+            continue
+        fi
+
+        tracked_state=$(git ls-files -v -- "$rel_path" 2>/dev/null | awk '{print $1}')
+        if [[ "$tracked_state" != "S" ]]; then
+            git update-index --skip-worktree "$rel_path" >/dev/null 2>&1 || true
+            configured=$((configured + 1))
+            if [[ $VERBOSE == true ]]; then
+                echo "  marked skip-worktree: $rel_path"
+            fi
+        fi
+    done
+
+    if [[ $configured -gt 0 ]]; then
+        log_success "Configured $configured local skip-worktree rule(s) for generated files"
+    else
+        log_info "Local skip-worktree rules already configured"
+    fi
+}
+
 # Download MADAGASCAR if not present
 download_madagascar() {
     if [ ! -d "planners/madagascar" ]; then
@@ -268,21 +475,25 @@ build_planner() {
     local planner_name=$1
     local planner_dir=$2
     local build_command=$3
+    local planner_key
+    planner_key=$(basename "$planner_dir")
     
     log_info "Building $planner_name..."
     
     if [ ! -d "$planner_dir" ]; then
         log_warning "$planner_name directory not found: $planner_dir"
         SKIPPED_LIST+=("$planner_name (directory not found)")
-        ((SKIPPED_COUNT++))
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
         return 1
     fi
     
     cd "$planner_dir"
     
     # Clean if requested
-    if [ "$CLEAN" = true ] && [ -f "Makefile" ]; then
-        make clean >/dev/null 2>&1 || true
+    if [ "$CLEAN" = true ]; then
+        cd - >/dev/null
+        clean_planner_artifacts "$planner_key" || true
+        cd "$planner_dir"
     fi
     
     # Execute build command with timeout (10 minutes max)
@@ -299,17 +510,17 @@ build_planner() {
     if [ $exit_code -eq 0 ]; then
         log_success "$planner_name built successfully"
         SUCCESS_LIST+=("$planner_name")
-        ((SUCCESS_COUNT++))
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         return 0
     elif [ $exit_code -eq 124 ]; then
         log_error "$planner_name build timed out (>10 minutes)"
         FAILURE_LIST+=("$planner_name (timeout)")
-        ((FAILURE_COUNT++))
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
         return 1
     else
         log_error "$planner_name build failed (exit code: $exit_code)"
         FAILURE_LIST+=("$planner_name (build error)")
-        ((FAILURE_COUNT++))
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
         return 1
     fi
 }
@@ -348,7 +559,7 @@ build_nextflap() {
     else
         log_warning "NextFLAP: No known build method found"
         SKIPPED_LIST+=("NextFLAP (no build method)")
-        ((SKIPPED_COUNT++))
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
     fi
 }
 
@@ -397,7 +608,7 @@ build_madagascar() {
         
         if [ $? -eq 0 ]; then
             log_success "MADAGASCAR $variant built successfully"
-            ((madagascar_success++))
+            madagascar_success=$((madagascar_success + 1))
         else
             log_error "MADAGASCAR $variant build failed"
         fi
@@ -407,10 +618,10 @@ build_madagascar() {
     
     if [ $madagascar_success -gt 0 ]; then
         SUCCESS_LIST+=("MADAGASCAR ($madagascar_success variants)")
-        ((SUCCESS_COUNT++))
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
         FAILURE_LIST+=("MADAGASCAR (all variants failed)")
-        ((FAILURE_COUNT++))
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
     fi
 }
 
@@ -418,6 +629,9 @@ build_ff_planners() {
     local ff_planners=("ff" "ff-x" "metric-ff" "conformant-ff" "contingent-ff" "probabilistic-ff")
     
     for planner in "${ff_planners[@]}"; do
+        if ! is_selected_planner "$planner"; then
+            continue
+        fi
         build_planner "FF-$planner" "planners/$planner" "make"
     done
 }
@@ -425,8 +639,12 @@ build_ff_planners() {
 build_lpg() {
     local lpg_success=0
 
-    build_planner "LPG-td (lpg)" "planners/lpg" "./configure >/dev/null 2>&1" && ((lpg_success++)) || true
-    build_planner "LPG-td (lpg-probing)" "planners/lpg" "./configure -probing >/dev/null 2>&1" && ((lpg_success++)) || true
+    if build_planner "LPG-td (lpg)" "planners/lpg" "./configure >/dev/null 2>&1"; then
+        lpg_success=$((lpg_success + 1))
+    fi
+    if build_planner "LPG-td (lpg-probing)" "planners/lpg" "./configure -probing >/dev/null 2>&1"; then
+        lpg_success=$((lpg_success + 1))
+    fi
 
     if [ -d "planners/lpg" ]; then
         (cd "planners/lpg" && ./configure >/dev/null 2>&1) || true
@@ -482,6 +700,18 @@ generate_report() {
 main() {
     log_info "PDDL Solvers Build Script Starting..."
     echo "Build log: $BUILD_LOG" > "$BUILD_LOG"
+
+    if [[ ${#SELECTED_PLANNERS[@]} -gt 0 ]]; then
+        log_info "Selected planners: ${SELECTED_PLANNERS[*]}"
+    else
+        log_info "Selected planners: all"
+    fi
+
+    if [[ "$CLEAN_ONLY" == true ]]; then
+        clean_selected_planners
+        log_success "Clean-only mode completed"
+        exit 0
+    fi
     
     # Check dependencies
     check_dependencies
@@ -491,24 +721,30 @@ main() {
 
     # Configure local submodule ignore patterns for generated build artifacts
     configure_submodule_ignores
+
+    # Configure local skip-worktree rules for tracked generated files
+    configure_local_skip_worktree
     
     # Download direct source planners
     download_madagascar
     
     # Build all planners (continue on failure to build as many as possible)
-    build_fast_downward || true
-    build_symk || true  
-    build_enhsp || true
-    build_optic || true
-    build_powerlifted || true
-    build_popf || true
-    build_nextflap || true
-    build_tfd || true
-    build_vhpop || true
-    build_madagascar || true
-    build_ff_planners || true
-    
-    build_lpg || true
+    is_selected_planner "downward" && build_fast_downward || true
+    is_selected_planner "symk" && build_symk || true
+    is_selected_planner "enhsp" && build_enhsp || true
+    is_selected_planner "optic" && build_optic || true
+    is_selected_planner "powerlifted" && build_powerlifted || true
+    is_selected_planner "popf" && build_popf || true
+    is_selected_planner "nextflap" && build_nextflap || true
+    is_selected_planner "tfd" && build_tfd || true
+    is_selected_planner "vhpop" && build_vhpop || true
+    is_selected_planner "madagascar" && build_madagascar || true
+
+    if is_selected_planner "ff" || is_selected_planner "ff-x" || is_selected_planner "metric-ff" || is_selected_planner "conformant-ff" || is_selected_planner "contingent-ff" || is_selected_planner "probabilistic-ff"; then
+        build_ff_planners || true
+    fi
+
+    is_selected_planner "lpg" && build_lpg || true
 
     # Generate final report
     generate_report

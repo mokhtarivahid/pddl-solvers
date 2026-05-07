@@ -122,6 +122,13 @@ pkg-config --modversion gsl  # Should be present
    
    # Clean and rebuild
    ./build_all.sh --clean
+
+  # Clean and rebuild a single planner
+  ./build_all.sh --clean --planner optic
+
+  # Clean only (no build), can target one or more planners
+  ./build_all.sh --clean-only --planner popf
+  ./build_all.sh --clean-only --planner ff,metric-ff
    ```
 
 The build script will:
