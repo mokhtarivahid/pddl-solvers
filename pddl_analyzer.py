@@ -56,6 +56,9 @@ class PDDLRequirementsParser:
             
             # PDDL 3.0 (Preferences)
             'preferences', 'constraints',
+
+            # PPDDL / Probabilistic planning
+            'probabilistic-effects',
             
             # Common aliases and variations
             'fluents', 'metrics', 'object-fluents'
@@ -352,14 +355,14 @@ class PlannerCapabilityDatabase:
             # Probabilistic Planning
             'probabilistic-ff': PlannerCapability(
                 name='Probabilistic-FF',
-                supported_requirements=basic_reqs,
-                pddl_version='PDDL 1.2',
-                description='Probabilistic planning with FF heuristics',
+                supported_requirements=adl_reqs | {'probabilistic-effects'},
+                pddl_version='PDDL 1.2+ / PPDDL extensions',
+                description='Probabilistic planning with weighted model counting',
                 performance_category='low',
                 optimization=False,
                 temporal=False,
-                approach_tags={'classical', 'probabilistic'},
-                notes='Experimental probabilistic planner'
+                approach_tags={'probabilistic', 'uncertainty', 'adl'},
+                notes='Supports probabilistic initial belief states and probabilistic effects'
             ),
             
             # Additional planners
@@ -402,14 +405,27 @@ class PlannerCapabilityDatabase:
             
             'ff-x': PlannerCapability(
                 name='FF-X',
-                supported_requirements=basic_reqs | {'conditional-effects'},
-                pddl_version='PDDL 1.2',
-                description='Extended version of FF planner',
+                supported_requirements=adl_reqs | {'derived-predicates'},
+                pddl_version='PDDL 2.1 (derived predicates)',
+                description='FF variant with support for derived predicates (axioms)',
                 performance_category='medium',
                 optimization=False,
                 temporal=False,
-                approach_tags={'classical', 'adl-lite', 'satisficing'},
-                notes='FF variant with additional features'
+                approach_tags={'classical', 'adl', 'derived-predicates', 'satisficing'},
+                notes='Handles ADL and PDDL 2.1 derived predicates (axioms)'
+            ),
+
+            # PDDL 2.2 Local Search Planner
+            'lpg': PlannerCapability(
+                name='LPG-td',
+                supported_requirements=temporal_reqs | adl_reqs | {'derived-predicates', 'timed-initial-literals'},
+                pddl_version='PDDL 2.2',
+                description='Local search planner supporting temporal, numeric, derived predicates and timed initial literals',
+                performance_category='medium',
+                optimization=False,
+                temporal=True,
+                approach_tags={'temporal', 'numeric', 'classical', 'adl', 'satisficing', 'local-search'},
+                notes='IPC 3/4 award-winning local search on planning graphs; handles PDDL 2.2 (timed-initial-literals, derived-predicates)'
             )
         }
         
@@ -488,10 +504,60 @@ class PlannerCapabilityDatabase:
         # These requirements are considered critical and cannot be easily worked around
         critical_requirements = {
             'durative-actions', 'numeric-fluents', 'continuous-effects',
-            'derived-predicates', 'preferences', 'timed-initial-literals'
+            'derived-predicates', 'preferences', 'timed-initial-literals',
+            'probabilistic-effects'
         }
         
         return missing_reqs & critical_requirements
+
+    def get_relaxed_compatible_planners(self, requirements: List[str]) -> List[Tuple[str, 'PlannerCapability']]:
+        """
+        Return planners that pass only the extreme-incompatibility check.
+
+        This is a lenient fallback: planners that lack soft requirements (ADL
+        features, equality, derived-predicates, etc.) are included because many
+        planners handle them in practice.  Only fundamentally impossible pairings
+        (non-temporal planner vs temporal domain, temporal-only vs classical) are
+        excluded.
+        """
+        compatible = [
+            (name, planner)
+            for name, planner in self.planners.items()
+            if not self.is_extreme_incompatibility(name, requirements)
+        ]
+        performance_order = {'high': 3, 'medium': 2, 'low': 1}
+        compatible.sort(key=lambda x: performance_order.get(x[1].performance_category, 1), reverse=True)
+        return compatible
+
+    def is_extreme_incompatibility(self, planner_name: str, requirements: List[str]) -> bool:
+        """
+        Check if there is an extreme (fundamental) incompatibility between a planner
+        and domain requirements that would make planning impossible.
+
+        Extreme incompatibilities:
+        - A non-temporal planner (temporal=False) used on a domain with durative-actions
+        - A temporal-only planner (temporal_only=True) used on a non-temporal domain
+
+        Soft mismatches (missing ADL features, equality, derived-predicates, etc.)
+        are NOT extreme — the planner may still handle the domain in practice.
+        """
+        planner = self.planners.get(planner_name)
+        if planner is None:
+            return False
+
+        req_set = set(req.lower().replace('_', '-') for req in requirements)
+        is_temporal_domain = 'durative-actions' in req_set
+
+        if 'probabilistic-effects' in req_set and 'probabilistic-effects' not in planner.supported_requirements:
+            return True
+
+        if is_temporal_domain and not planner.temporal:
+            return True
+
+        if planner.temporal_only and not is_temporal_domain:
+            return True
+
+        return False
 
 
 class PDDLAnalyzer:
@@ -505,6 +571,7 @@ class PDDLAnalyzer:
         # Keep in sync with README Build Status "Working" planners.
         self.working_planners = {
             'downward', 'ff', 'conformant-ff', 'contingent-ff', 'metric-ff',
+            'ff-x', 'probabilistic-ff', 'lpg',
             'enhsp', 'symk', 'madagascar', 'optic', 'popf', 'tfd', 'powerlifted'
         }
     
@@ -539,12 +606,27 @@ class PDDLAnalyzer:
             reverse=True
         )
         
+        # Relaxed fallback: planners passing only the extreme-incompatibility check.
+        relaxed_planners = self.planner_db.get_relaxed_compatible_planners(domain_info['requirements'])
+        available_relaxed = [
+            (name, planner) for name, planner in relaxed_planners
+            if name in available_planners and (name, planner) not in available_compatible
+        ]
+        ranked_available_relaxed = sorted(
+            available_relaxed,
+            key=lambda x: self._recommendation_score(x[0], x[1], planning_approach),
+            reverse=True
+        )
+
         result = {
             'domain_info': domain_info,
             'compatible_planners': compatible_planners,
             'available_compatible_planners': ranked_available_compatible,
+            'available_relaxed_planners': ranked_available_relaxed,
             'available_planners': list(available_planners),
-            'analysis_summary': self._generate_analysis_summary(domain_info, compatible_planners, ranked_available_compatible)
+            'analysis_summary': self._generate_analysis_summary(
+                domain_info, compatible_planners, ranked_available_compatible, ranked_available_relaxed
+            )
         }
         
         return result
@@ -562,6 +644,7 @@ class PDDLAnalyzer:
             'tfd': 84,
             'powerlifted': 82,
             'madagascar': 80,
+            'lpg': 78,
             'ff-x': 74,
             'vhpop': 70,
             'nextflap': 66,
@@ -580,6 +663,7 @@ class PDDLAnalyzer:
                 'madagascar': 7,
                 'powerlifted': 6,
                 'metric-ff': 4,
+                'lpg': 3,
             }.get(planner_name, 0)
         elif planning_approach == 'ADL Planning':
             score += {
@@ -587,24 +671,34 @@ class PDDLAnalyzer:
                 'symk': 11,
                 'ff-x': 9,
                 'ff': 8,
+                'lpg': 6,
             }.get(planner_name, 0)
         elif planning_approach == 'Numeric Planning':
             score += {
                 'enhsp': 14,
                 'metric-ff': 12,
                 'downward': 9,
+                'lpg': 5,
             }.get(planner_name, 0)
         elif planning_approach == 'Temporal Planning':
             score += {
                 'optic': 15,
                 'popf': 12,
                 'tfd': 11,
+                'lpg': 10,
             }.get(planner_name, 0)
         elif planning_approach == 'Temporal-Numeric Planning':
             score += {
                 'optic': 15,
                 'popf': 13,
                 'tfd': 12,
+                'lpg': 11,
+            }.get(planner_name, 0)
+        elif planning_approach == 'Probabilistic Planning':
+            score += {
+                'probabilistic-ff': 20,
+                'contingent-ff': 4,
+                'conformant-ff': 3,
             }.get(planner_name, 0)
 
         # High-performance planners get a slight tie-break preference.
@@ -639,6 +733,9 @@ class PDDLAnalyzer:
             'conformant-ff': [planner_dir / 'ff'],
             'contingent-ff': [planner_dir / 'ff'],
             'metric-ff': [planner_dir / 'ff'],
+            'ff-x': [planner_dir / 'ff'],
+            'probabilistic-ff': [planner_dir / 'ff'],
+            'lpg': [planner_dir / 'lpg'],
             'enhsp': [planner_dir / 'enhsp.jar'],
             'symk': [planner_dir / 'fast-downward.py'],
             'madagascar': [planner_dir / 'Mp'],
@@ -651,12 +748,18 @@ class PDDLAnalyzer:
         artifacts = expected_artifacts.get(planner_name, [])
         return all(path.exists() for path in artifacts)
     
-    def _generate_analysis_summary(self, domain_info: Dict, 
-                                  compatible_planners: List, 
-                                  available_compatible: List) -> Dict:
+    def _generate_analysis_summary(self, domain_info: Dict,
+                                  compatible_planners: List,
+                                  available_compatible: List,
+                                  available_relaxed: List = None) -> Dict:
         """Generate a summary of the analysis."""
         requirements = domain_info['requirements']
-        
+        if available_relaxed is None:
+            available_relaxed = []
+
+        # Use relaxed planners for recommendation when strict list is empty.
+        planners_for_recommendation = available_compatible if available_compatible else available_relaxed
+
         summary = {
             'domain_name': domain_info['domain_name'],
             'pddl_version': domain_info['pddl_version'],
@@ -666,19 +769,20 @@ class PDDLAnalyzer:
             'available_compatible_planners': len(available_compatible),
             'complexity_level': self._assess_complexity(domain_info),
             'recommended_planner': None,
+            'recommended_planner_relaxed': len(available_compatible) == 0 and len(available_relaxed) > 0,
             'planning_approach': self._determine_planning_approach(requirements)
         }
-        
-        # Recommend best planner
-        if available_compatible:
-            best_planner = available_compatible[0]
+
+        # Recommend best planner (strict first, relaxed fallback)
+        if planners_for_recommendation:
+            best_planner = planners_for_recommendation[0]
             summary['recommended_planner'] = {
                 'name': best_planner[1].name,
                 'system_name': best_planner[0],
                 'description': best_planner[1].description,
                 'notes': best_planner[1].notes
             }
-        
+
         return summary
     
     def _assess_complexity(self, domain_info: Dict) -> str:
@@ -688,6 +792,9 @@ class PDDLAnalyzer:
         # High complexity indicators
         high_complexity = {'durative-actions', 'continuous-effects', 'derived-predicates', 'preferences'}
         medium_complexity = {'numeric-fluents', 'conditional-effects', 'quantified-preconditions', 'adl'}
+
+        if 'probabilistic-effects' in requirements:
+            return 'High'
         
         if requirements & high_complexity:
             return 'High'
@@ -699,6 +806,9 @@ class PDDLAnalyzer:
     def _determine_planning_approach(self, requirements: List[str]) -> str:
         """Determine the type of planning approach needed."""
         req_set = set(requirements)
+
+        if 'probabilistic-effects' in req_set:
+            return 'Probabilistic Planning'
         
         if 'durative-actions' in req_set:
             if 'numeric-fluents' in req_set or 'fluents' in req_set:
@@ -739,23 +849,38 @@ class PDDLAnalyzer:
             print(f"  - Durative Actions: {domain_info['durative_actions']}")
             print(f"  - Derived Predicates: {domain_info['derived_predicates']}")
         
-        print(f"\nCompatible Planners ({summary['total_compatible_planners']} total, {summary['available_compatible_planners']} available):")
-        
-        available_planners = analysis['available_compatible_planners']
-        if available_planners:
-            for i, (name, planner) in enumerate(available_planners):
+        strict_planners = analysis['available_compatible_planners']
+        relaxed_planners = analysis.get('available_relaxed_planners', [])
+        is_relaxed = summary.get('recommended_planner_relaxed', False)
+
+        if strict_planners:
+            print(f"\nCompatible Planners ({summary['total_compatible_planners']} total, {summary['available_compatible_planners']} available):")
+            for i, (name, planner) in enumerate(strict_planners):
                 status = "AVAILABLE" if name in analysis['available_planners'] else "Not Available"
                 print(f"  {i+1}. {planner.name} ({name}) - compatible {status}")
                 if verbose:
                     print(f"     {planner.description}")
                     if planner.notes:
                         print(f"     Note: {planner.notes}")
+        elif relaxed_planners:
+            print(f"\nCompatible Planners (0 strictly compatible — showing partial-match planners):")
+            for i, (name, planner) in enumerate(relaxed_planners):
+                status = "AVAILABLE" if name in analysis['available_planners'] else "Not Available"
+                print(f"  {i+1}. {planner.name} ({name}) - partial match {status}")
+                if verbose:
+                    print(f"     {planner.description}")
+                    if planner.notes:
+                        print(f"     Note: {planner.notes}")
         else:
+            print(f"\nCompatible Planners (0 total, 0 available):")
             print("  No compatible planners available in the system!")
-        
+
         if summary['recommended_planner']:
             rec = summary['recommended_planner']
-            print(f"\nRECOMMENDED PLANNER:")
+            if is_relaxed:
+                print(f"\nRECOMMENDED PLANNER (partial match — may handle domain in practice):")
+            else:
+                print(f"\nRECOMMENDED PLANNER:")
             print(f"   {rec['name']} ({rec['system_name']})")
             print(f"   {rec['description']}")
             if rec['notes']:

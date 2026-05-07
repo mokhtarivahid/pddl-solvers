@@ -528,6 +528,29 @@ class PlannerRunner:
                 cmd.extend(extra_args)
             return {"config": resolved_config, "cmd": cmd, "cwd": str(temp_dir)}
 
+        if planner == "lpg":
+            lpg_dir = self.planners_dir / "lpg"
+            lpg_exe = lpg_dir / "lpg"
+            if not lpg_exe.exists():
+                raise FileNotFoundError(f"LPG executable not found at {lpg_exe}")
+            temp_dir = self.setup_temp_dir()
+            shutil.copy2(domain_file, temp_dir / "domain.pddl")
+            shutil.copy2(problem_file, temp_dir / "problem.pddl")
+            cmd = [str(lpg_exe), "-o", "domain.pddl", "-f", "problem.pddl"]
+            # Add mode flags from spec or config name
+            spec_args = self._get_spec_args("lpg", resolved_config)
+            if spec_args:
+                cmd.extend(spec_args)
+            elif resolved_config == "speed":
+                cmd.extend(["-speed"])
+            elif resolved_config == "quality":
+                cmd.extend(["-quality"])
+            else:
+                cmd.extend(["-n", "1"])
+            if extra_args:
+                cmd.extend(extra_args)
+            return {"config": resolved_config, "cmd": cmd, "cwd": str(temp_dir)}
+
         if planner == "madagascar":
             madagascar_dir = self.planners_dir / "madagascar"
             madagascar_exe = madagascar_dir / "Mp"
@@ -677,8 +700,8 @@ class PlannerRunner:
         
         # Check direct source planners
         source_planners = [
-            "ff", "ff-x", "metric-ff", "conformant-ff", 
-            "contingent-ff", "probabilistic-ff", "madagascar"
+            "ff", "ff-x", "metric-ff", "conformant-ff",
+            "contingent-ff", "probabilistic-ff", "madagascar", "lpg"
         ]
         
         for planner in source_planners:
@@ -935,6 +958,8 @@ class PlannerRunner:
             return self.run_symk(domain_file, problem_file, config, timeout, extra_args)
         elif planner in ["ff-x", "metric-ff", "conformant-ff", "contingent-ff", "probabilistic-ff"]:
             return self.run_ff_variant(planner, domain_file, problem_file, config, timeout, extra_args)
+        elif planner == "lpg":
+            return self.run_lpg(domain_file, problem_file, config, timeout, extra_args)
         else:
             # Try common executable names in planner directory
             executables = [planner, f"{planner}.jar", f"{planner}.py"]
@@ -1271,6 +1296,88 @@ class PlannerRunner:
         """Extract plan from POPF output."""
         return self._extract_temporal_plan(stdout)
     
+    def run_lpg(self, domain_file: Path, problem_file: Path,
+                config: str, timeout: int,
+                extra_args: Optional[List[str]] = None) -> Dict:
+        """Run LPG-td planner."""
+        bundle = self.prepare_planner_command("lpg", domain_file, problem_file, config, timeout, extra_args)
+        cmd = bundle["cmd"]
+        temp_dir = bundle["cwd"]
+
+        print(f"Running LPG with command: {self.format_command(cmd)}")
+
+        start_time = time.time()
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+
+            runtime = time.time() - start_time
+
+            # LPG writes plan to plan_<problem_stem>_<n>.SOL in the working directory.
+            # Also fall back to parsing stdout if no file is found.
+            plan_content = self._collect_lpg_plan(Path(temp_dir), result.stdout)
+            plans = self._plans_from_text_block("lpg", plan_content, "stdout") if plan_content else []
+
+            result_data = {
+                "planner": "lpg",
+                "config": config,
+                "success": result.returncode == 0 and bool(plan_content.strip()),
+                "runtime": runtime,
+                "plan": plan_content,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "return_code": result.returncode
+            }
+            return self._finalize_result_plans(result_data, plans)
+
+        except subprocess.TimeoutExpired as exc:
+            partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
+            plan_content = self._collect_lpg_plan(Path(temp_dir), partial_stdout)
+            timeout_result = self._build_timeout_response(
+                "lpg", config, timeout, start_time, exc, plan_content
+            )
+            plans = self._plans_from_text_block("lpg", plan_content, "stdout", is_partial=True) if plan_content else []
+            return self._finalize_result_plans(timeout_result, plans)
+
+    def _collect_lpg_plan(self, work_dir: Path, stdout: str) -> str:
+        """Collect LPG plan from .SOL file, falling back to stdout extraction."""
+        # LPG names plan files plan_<problem_name>_<n>.SOL
+        sol_files = sorted(work_dir.glob("plan_*_*.SOL"))
+        if sol_files:
+            # Return the last (best quality) solution
+            try:
+                return sol_files[-1].read_text(errors="replace").strip()
+            except OSError:
+                pass
+        # Fall back: extract from stdout (LPG prints last solution to screen)
+        return self._extract_lpg_plan(stdout)
+
+    def _extract_lpg_plan(self, stdout: str) -> str:
+        """Extract plan actions from LPG stdout."""
+        lines = stdout.split('\n')
+        plan_lines = []
+        in_plan = False
+        for line in lines:
+            stripped = line.strip()
+            lower = stripped.lower()
+            if 'solution found' in lower or 'plan found' in lower:
+                in_plan = True
+                continue
+            if in_plan:
+                if not stripped or lower.startswith(';') or 'time' in lower and ':' not in stripped:
+                    continue
+                # Action lines typically look like: "0.00000: (action ...)" or "(action ...)"
+                if '(' in stripped and ')' in stripped:
+                    plan_lines.append(stripped)
+                elif stripped.startswith('step') or (stripped and stripped[0].isdigit() and ':' in stripped):
+                    plan_lines.append(stripped)
+        return '\n'.join(plan_lines)
+
     def run_ff_variant(self, planner: str, domain_file: Path, problem_file: Path,
                       config: str, timeout: int,
                       extra_args: Optional[List[str]] = None) -> Dict:
@@ -1530,9 +1637,23 @@ class PlannerRunner:
         """
         analysis = self.analyze_domain(domain_path)
         compatible_planners = analysis['available_compatible_planners']
-        
+        relaxed_fallback = False
+
         if not compatible_planners:
-            raise ValueError("No compatible planners available for this domain")
+            # Strict compatibility found nothing; try the relaxed set (only extreme
+            # incompatibilities excluded) before giving up.
+            relaxed = analysis.get('available_relaxed_planners', [])
+            if relaxed:
+                print(
+                    "Warning: No strictly compatible planners found. "
+                    "Falling back to planners with partial compatibility "
+                    "(soft requirement mismatches only).",
+                    file=sys.stderr,
+                )
+                compatible_planners = relaxed
+                relaxed_fallback = True
+            else:
+                raise ValueError("No compatible planners available for this domain")
         
         # Filter by optimization preference if requested
         if prefer_optimal:
@@ -1772,32 +1893,6 @@ def main():
                 return 1
 
         config = runner.resolve_config(planner, config)
-
-        # Early planner compatibility gate: fail fast before launching planner
-        # when selected planner cannot handle the domain requirements.
-        if analysis is None:
-            analysis = runner.analyze_domain(str(domain_file))
-
-        compatible_planner_names = {name for name, _ in analysis.get('compatible_planners', [])}
-        if planner not in compatible_planner_names:
-            summary = analysis.get('analysis_summary', {})
-            requirements = summary.get('requirements_list', [])
-            approach = summary.get('planning_approach', 'Unknown')
-            compatible_available = [name for name, _ in analysis.get('available_compatible_planners', [])]
-
-            print(
-                f"Error: Planner '{planner}' is not compatible with this domain "
-                f"(approach: {approach}, requirements: {', '.join(':' + r for r in requirements) or 'none'}).",
-                file=sys.stderr,
-            )
-            if compatible_available:
-                print(
-                    f"Compatible available planners: {', '.join(compatible_available)}",
-                    file=sys.stderr,
-                )
-            else:
-                print("No compatible planners are currently available in this workspace.", file=sys.stderr)
-            return 1
         
         print(f"\nDomain: {domain_file}")
         print(f"Problem: {problem_file}")

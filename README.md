@@ -13,6 +13,7 @@ This repository provides a curated collection of state-of-the-art PDDL planners,
 | **Classical** | **Fast-Downward** | [aibasel/downward](https://github.com/aibasel/downward) | The industry and research "gold standard" for discrete, deterministic planning. |
 | **Classical (Legacy)** | **FF** | [FF-v2.3](https://fai.cs.uni-saarland.de/hoffmann/ff.html) | Fast forward chaining heuristic search; foundational classical planner with excellent performance on STRIPS domains. |
 | **Classical (ADL)** | **FF-X** | [FF-X](https://fai.cs.uni-saarland.de/hoffmann/ff.html) | Extension of FF handling PDDL 2.1 derived predicates (axioms) for complex logical planning. |
+| **Temporal/Numeric (PDDL 2.2)** | **LPG-td** | [LPG](https://lpg.ing.unibs.it/) | Local search on planning graphs; IPC 3 & 4 award winner; supports PDDL 2.2 (durative actions, numeric fluents, timed initial literals, derived predicates). |
 | **Optimal/Top-K** | **SymK** | [speckdavid/symk](https://github.com/speckdavid/symk) | Finding optimal plans or a set of diverse "top-k" alternatives using symbolic search. |
 | **Numeric** | **ENHSP** | [hstairs/enhsp](https://github.com/hstairs/enhsp) | Advanced numeric planning, including non-linear effects and global constraints. |
 | **Numeric (Legacy)** | **Metric-FF** | [Metric-FF](https://fai.cs.uni-saarland.de/hoffmann/metric-ff.html) | Extension of FF to numerical state variables; top performer in PDDL 2.1 level 2 numeric planning. |
@@ -268,8 +269,9 @@ View the full specification:
 | **CONFORMANT-FF** | Working | Conformant planning |
 | **CONTINGENT-FF** | Working | Contingent planning |
 | **METRIC-FF** | Working | Numeric planning (subset of PDDL 2.1 level 2) |
-| **FF-X** | Build Issues | Linker symbol conflicts |
-| **PROBABILISTIC-FF** | Build Issues | Linker symbol conflicts |
+| **FF-X** | Working | PDDL 2.1 derived predicates |
+| **PROBABILISTIC-FF** | Working | Planning under uncertainty |
+| **LPG-td** | Working | PDDL 2.2 temporal, numeric, timed initial literals, derived predicates |
 | **ENHSP** | Working | Numeric planning (some domains) |
 | **SymK** | Working | Optimal and top-k planning with symbolic search |
 | **MADAGASCAR** | Working | SAT-based planner |
