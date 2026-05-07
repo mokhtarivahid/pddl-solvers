@@ -317,7 +317,22 @@ planners:
     
     configurations:
       default:
-        description: "SAT-based optimal planning"
+        description: "Madagascar with planning heuristic (algorithm B by default)"
+        args: []
+
+      planning-heuristic:
+        description: "Use Mp binary: planning heuristic enabled, algorithm B default"
+        executable: "Mp"
+        args: []
+
+      planning-heuristic-c:
+        description: "Use MpC binary: planning heuristic enabled, algorithm C default"
+        executable: "MpC"
+        args: []
+
+      vsids:
+        description: "Use M binary: VSIDS SAT heuristic enabled"
+        executable: "M"
         args: []
 
   powerlifted:
@@ -402,17 +417,51 @@ planners:
     
     configurations:
       default:
-        description: "Find one solution as fast as possible (speed mode)"
-        args: ["-n", "1"]
+        description: "Find a solution with better quality (slower)"
+        args: ["-quality"]
+
+      standard:
+        description: "Use the standard lpg binary"
+        executable: "lpg"
+        args: ["-quality"]
+
+      probing:
+        description: "Use the lpg-probing binary"
+        executable: "lpg-probing"
+        args: ["-quality"]
       
       speed:
         description: "Find a solution as quickly as possible"
+        args: ["-speed"]
+
+      speed-probing:
+        description: "Use lpg-probing and find a solution as quickly as possible"
+        executable: "lpg-probing"
         args: ["-speed"]
       
       quality:
         description: "Find a solution with better quality (slower)"
         args: ["-quality"]
+
+      quality-probing:
+        description: "Use lpg-probing and find a solution with better quality"
+        executable: "lpg-probing"
+        args: ["-quality"]
       
+      incremental-1:
+        description: "Find up to 1 improving solution"
+        args: ["-n", "1"]
+
+      incremental-1-probing:
+        description: "Use lpg-probing and find up to 1 improving solution"
+        executable: "lpg-probing"
+        args: ["-n", "1"]
+
       incremental-3:
         description: "Find up to 3 improving solutions"
+        args: ["-n", "3"]
+
+      incremental-3-probing:
+        description: "Use lpg-probing and find up to 3 improving solutions"
+        executable: "lpg-probing"
         args: ["-n", "3"]

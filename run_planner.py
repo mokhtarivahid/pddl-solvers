@@ -434,6 +434,15 @@ class PlannerRunner:
         except ValueError:
             return []
 
+    def _get_spec_executable(self, planner: str, config: str) -> Optional[str]:
+        """Get executable override from specification when available."""
+        if not self.spec or not self.spec.has_planner(planner):
+            return None
+        try:
+            return self.spec.get_config_executable(planner, config)
+        except ValueError:
+            return None
+
     def _prepare_enhsp_inputs(self, domain_file: Path, problem_file: Path) -> Tuple[Path, Path]:
         """Prepare ENHSP-friendly lowercase PDDL copies.
 
@@ -530,7 +539,8 @@ class PlannerRunner:
 
         if planner == "lpg":
             lpg_dir = self.planners_dir / "lpg"
-            lpg_exe = lpg_dir / "lpg"
+            lpg_exe_name = self._get_spec_executable("lpg", resolved_config) or "lpg"
+            lpg_exe = lpg_dir / lpg_exe_name
             if not lpg_exe.exists():
                 raise FileNotFoundError(f"LPG executable not found at {lpg_exe}")
             temp_dir = self.setup_temp_dir()
@@ -553,10 +563,14 @@ class PlannerRunner:
 
         if planner == "madagascar":
             madagascar_dir = self.planners_dir / "madagascar"
-            madagascar_exe = madagascar_dir / "Mp"
+            madagascar_exe_name = self._get_spec_executable("madagascar", resolved_config) or "Mp"
+            madagascar_exe = madagascar_dir / madagascar_exe_name
             if not madagascar_exe.exists():
                 raise FileNotFoundError(f"MADAGASCAR executable not found at {madagascar_exe}")
             cmd = [str(madagascar_exe), str(domain_file), str(problem_file)]
+            spec_args = self._get_spec_args("madagascar", resolved_config)
+            if spec_args:
+                cmd.extend(spec_args)
             if extra_args:
                 cmd.extend(extra_args)
             return {"config": resolved_config, "cmd": cmd, "cwd": str(madagascar_dir)}

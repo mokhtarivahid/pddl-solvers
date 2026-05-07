@@ -114,6 +114,11 @@ class PlannerSpecification:
         """Get command-line arguments for a configuration."""
         config = self.get_config_info(planner_name, config_name)
         return config.get("args", [])
+
+    def get_config_executable(self, planner_name: str, config_name: str) -> Optional[str]:
+        """Get executable override for a configuration, if any."""
+        config = self.get_config_info(planner_name, config_name)
+        return config.get("executable")
     
     def list_configurations(self, planner_name: str) -> None:
         """Print all available configurations for a planner."""

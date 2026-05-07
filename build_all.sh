@@ -423,7 +423,19 @@ build_ff_planners() {
 }
 
 build_lpg() {
-    build_planner "LPG-td" "planners/lpg" "make"
+    local lpg_success=0
+
+    build_planner "LPG-td (lpg)" "planners/lpg" "./configure >/dev/null 2>&1" && ((lpg_success++)) || true
+    build_planner "LPG-td (lpg-probing)" "planners/lpg" "./configure -probing >/dev/null 2>&1" && ((lpg_success++)) || true
+
+    if [ -d "planners/lpg" ]; then
+        (cd "planners/lpg" && ./configure >/dev/null 2>&1) || true
+    fi
+
+    if [ $lpg_success -eq 2 ]; then
+        return 0
+    fi
+    return 1
 }
 
 # Generate final report
