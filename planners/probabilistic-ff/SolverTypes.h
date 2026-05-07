@@ -36,6 +36,16 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 typedef int Var;
 #define var_Undef (-1)
 
+class Lit;
+inline Lit toLit(int i);
+
+class Clause;
+inline Clause* Clause_new(bool learnt, const vec<Lit>& ps);
+
+class GClause;
+inline GClause GClause_new(Lit p);
+inline GClause GClause_new(Clause* c);
+
 
 class Lit {
     int     x;

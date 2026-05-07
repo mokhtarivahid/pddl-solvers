@@ -458,7 +458,7 @@ Bool satisfies_goal( State *S, State *current_goals )
     gdecision_stack[gnum_decision_stack++] = m * gcodes[lStime][ft];
   } /* loop insert goals into decision stack */
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
   /* count models with these constraints
@@ -481,7 +481,7 @@ Bool satisfies_goal( State *S, State *current_goals )
       fc = FALSE;
     }
   } /* else: both are initialized to 1 in main.c */
-  times( &end );
+  times( &end_time );
   TIME( gwmc_time );
   times( &start );
 
@@ -1015,7 +1015,7 @@ int get_1P_and_H( State *S, State *current_goals,
 
   gevaluated_states++;
 
-  times( &end );
+  times( &end_time );
   TIME( gsearch_time );
   times( &start );
 
@@ -1096,7 +1096,7 @@ int get_1P_and_H( State *S, State *current_goals,
     gnum_H = gnum_A;
   }
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
 
@@ -1135,7 +1135,7 @@ int get_1P( State *S, State *current_goals,
 
   gevaluated_states++;
 
-  times( &end );
+  times( &end_time );
   TIME( gsearch_time );
   times( &start );
 
@@ -1183,7 +1183,7 @@ int get_1P( State *S, State *current_goals,
 
   reset_fixpoint();
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
 
@@ -1720,7 +1720,7 @@ void insert_path_implications( State *S, EhcNode *ehc_father, BfsNode *bfs_fathe
    * is a goal state. (enough goal likelyhood) somewhat wasteful, see above;
    * normally, we'd need the state formula only for -h 2.
    */
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );    
   
@@ -1728,7 +1728,7 @@ void insert_path_implications( State *S, EhcNode *ehc_father, BfsNode *bfs_fathe
    */
   lStime = r_extend_dynamic_clauses_base( path, S_num_path, path_op );
   
-  times( &end );
+  times( &end_time );
   TIME( gr_cnf_time );
   times( &start );
   
@@ -1740,7 +1740,7 @@ void insert_path_implications( State *S, EhcNode *ehc_father, BfsNode *bfs_fathe
    */
   extend_dynamic_clauses_base_encoding( gnum_fixed_clauses, gnum_fixed_c );
   
-  times( &end );
+  times( &end_time );
   TIME( gr_enc_time );
   times( &start );
   
@@ -3576,12 +3576,12 @@ Bool disjunction_implied_by_initial_formula( int *dis, int num_dis, Bool *is_dis
     lr_decision_stack[lr_num_decision_stack++] = (-1) * cdis[i];
   }
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
   gr_sat_calls++;
   sat = r_dp_CNF();
-  times( &end );
+  times( &end_time );
   TIME( gr_sat_time );
   times( &start );
   if ( sat ) {
@@ -3699,7 +3699,7 @@ Bool disjunction_implied_by_S_formula( int *dis, int num_dis, Bool *is_dis )
     gdecision_stack[gnum_decision_stack++] = (-1) * cdis[i];
   }
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   gr_sat_calls++;
   sat = dp_CNF();
@@ -5538,7 +5538,7 @@ void get_minimal_disjunction_implied_by_initial_formula( int *dis, int num_dis, 
       lr_decision_stack[lr_num_decision_stack++] = (-1) * cdis[i];
     }
     print_r_clauses();
-    times( &end );
+    times( &end_time );
     TIME( geval_time );
     sat = r_dp_CNF();
     if ( sat ) {
@@ -5600,12 +5600,12 @@ void get_minimal_disjunction_implied_by_initial_formula( int *dis, int num_dis, 
       }
       /* test if this is still implied
        */
-      times( &end );
+      times( &end_time );
       TIME( geval_time );
       times( &start );
       grp_sat_calls++;
       sat = r_dp_CNF();
-      times( &end );
+      times( &end_time );
       TIME( grp_sat_time );
       times( &start );
       if ( sat ) {
@@ -5835,7 +5835,7 @@ void get_minimal_disjunction_implied_by_state_formula( int *dis, int num_dis, Bo
       }
       /* test if this is still implied
        */
-      times( &end );
+      times( &end_time );
       TIME( geval_time );
       grp_sat_calls++;
       sat = dp_CNF();
@@ -7061,7 +7061,7 @@ Bool goals_likely_enough( int time )
     fflush(stdout);
   }
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
 
@@ -7070,7 +7070,7 @@ Bool goals_likely_enough( int time )
       printf("\ntime %d, P test failed!", time);
       fflush(stdout);
     }
-    times( &end );
+    times( &end_time );
     TIME( gP_time );
     times( &start );
     return FALSE;
@@ -7081,7 +7081,7 @@ Bool goals_likely_enough( int time )
     fflush(stdout);
   }
   lgoals_not_known = TRUE;
-  times( &end );
+  times( &end_time );
   TIME( gP_time );
   times( &start );
   return TRUE;
@@ -8665,12 +8665,12 @@ Bool disjunctions_supported_by_initial_formula( int **dis, int *num_dis,
    */
 
 
-  times( &end );
+  times( &end_time );
   TIME( gP_time );
   times( &start );
   gwmc_calls++;
   r_wmc_CNF(&a, &b);
-  times( &end );
+  times( &end_time );
   TIME( gwmc_time );
   times( &start );
 
@@ -8946,13 +8946,13 @@ Bool disjunctions_supported_by_S_formula( int **dis, int *num_dis,
    */
 
 
-  times( &end );
+  times( &end_time );
   TIME( gP_time );
   times( &start );
   gwmc_calls++;
   gnum_decision_stack = 0;
   wmc_CNF(&a, &b);
-  times( &end );
+  times( &end_time );
   TIME( gwmc_time );
   times( &start );
 
@@ -9164,7 +9164,7 @@ void preselect_P_actions( int time )
     fflush(stdout);
   }
 
-  times( &end );
+  times( &end_time );
   TIME( geval_time );
   times( &start );
 
@@ -9174,7 +9174,7 @@ void preselect_P_actions( int time )
   l1P_preselection_done = select_disjunctions_supported_by_formula( Utime, goalU, num_goalU,
 								    ggoal_probability );
 
-  times( &end );
+  times( &end_time );
   TIME( gP_time );
   times( &start );
 
@@ -11565,14 +11565,14 @@ void r_external_cachet_CNF( double *a, double *b )
 
   /* don't count time for file creation!
    */
-  times( &end );
+  times( &end_time );
   TIME( gwmc_time );
 
   /* july06: count it, but separately.
    */
   times( &start );
   r_print_wmc_CNF();
-  times( &end );
+  times( &end_time );
   TIME( gWMC_filetime );
 
   if ( gcmd_line.debug && gcmd_line.R ) {

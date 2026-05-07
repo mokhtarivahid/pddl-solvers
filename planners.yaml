@@ -307,7 +307,7 @@ planners:
         args: []
 
   madagascar:
-    description: "Madagascar - SAT-based PDDL planner"
+    description: "Madagascar - SAT-based classical planner with three compiled heuristic defaults (Mp, MpC, M)"
     executable: "madagascar"
     requires: []
     capabilities:
@@ -317,21 +317,21 @@ planners:
     
     configurations:
       default:
-        description: "Madagascar with planning heuristic (algorithm B by default)"
+        description: "Recommended default (Mp): planning heuristic enabled, algorithm B default."
         args: []
 
       planning-heuristic:
-        description: "Use Mp binary: planning heuristic enabled, algorithm B default"
+        description: "Mp binary: planning heuristic enabled, algorithm B default."
         executable: "Mp"
         args: []
 
       planning-heuristic-c:
-        description: "Use MpC binary: planning heuristic enabled, algorithm C default"
+        description: "MpC binary: planning heuristic enabled, algorithm C default; usually higher memory use than Mp."
         executable: "MpC"
         args: []
 
       vsids:
-        description: "Use M binary: VSIDS SAT heuristic enabled"
+        description: "M binary: VSIDS SAT heuristic (no planning heuristic)."
         executable: "M"
         args: []
 
@@ -404,7 +404,7 @@ planners:
         args: []
 
   lpg:
-    description: "LPG-td - Local search for Planning Graphs (PDDL 2.2: temporal, numeric, derived predicates, timed initial literals)"
+    description: "LPG-td - Local-search planner for PDDL 2.2 temporal/numeric domains; supports standard (lpg) and probing-named (lpg-probing) binaries"
     executable: "lpg"
     requires: []
     capabilities:
@@ -417,51 +417,51 @@ planners:
     
     configurations:
       default:
-        description: "Find a solution with better quality (slower)"
+        description: "Recommended default: lpg in quality mode (optimize plan quality)."
         args: ["-quality"]
 
       standard:
-        description: "Use the standard lpg binary"
+        description: "lpg binary in quality mode."
         executable: "lpg"
         args: ["-quality"]
 
       probing:
-        description: "Use the lpg-probing binary"
+        description: "lpg-probing binary in quality mode; in this repo it uses the same planner logic as lpg (alternate build name)."
         executable: "lpg-probing"
         args: ["-quality"]
       
       speed:
-        description: "Find a solution as quickly as possible"
+        description: "lpg binary in speed mode (first solution fast)."
         args: ["-speed"]
 
       speed-probing:
-        description: "Use lpg-probing and find a solution as quickly as possible"
+        description: "lpg-probing binary in speed mode."
         executable: "lpg-probing"
         args: ["-speed"]
       
       quality:
-        description: "Find a solution with better quality (slower)"
+        description: "lpg binary in quality mode (improves plan quality)."
         args: ["-quality"]
 
       quality-probing:
-        description: "Use lpg-probing and find a solution with better quality"
+        description: "lpg-probing binary in quality mode."
         executable: "lpg-probing"
         args: ["-quality"]
       
       incremental-1:
-        description: "Find up to 1 improving solution"
+        description: "lpg binary, incremental mode, up to 1 solution."
         args: ["-n", "1"]
 
       incremental-1-probing:
-        description: "Use lpg-probing and find up to 1 improving solution"
+        description: "lpg-probing binary, incremental mode, up to 1 solution."
         executable: "lpg-probing"
         args: ["-n", "1"]
 
       incremental-3:
-        description: "Find up to 3 improving solutions"
+        description: "lpg binary, incremental mode, up to 3 improving solutions."
         args: ["-n", "3"]
 
       incremental-3-probing:
-        description: "Use lpg-probing and find up to 3 improving solutions"
+        description: "lpg-probing binary, incremental mode, up to 3 improving solutions."
         executable: "lpg-probing"
         args: ["-n", "3"]
