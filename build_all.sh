@@ -422,6 +422,10 @@ build_ff_planners() {
     done
 }
 
+build_lpg() {
+    build_planner "LPG-td" "planners/lpg" "make"
+}
+
 # Generate final report
 generate_report() {
     log_info "Build Summary:"
@@ -492,6 +496,8 @@ main() {
     build_madagascar || true
     build_ff_planners || true
     
+    build_lpg || true
+
     # Generate final report
     generate_report
 }
