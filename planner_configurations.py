@@ -161,8 +161,3 @@ class PlannerConfigurations:
             if not planner_reqs or all(req in requirements for req in planner_reqs):
                 matching.append(planner_name)
         return matching
-
-
-# Backward compatibility aliases for older imports.
-PlannerExecutionSpecification = PlannerConfigurations
-PlannerSpecification = PlannerConfigurations

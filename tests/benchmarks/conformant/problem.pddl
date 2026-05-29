@@ -1,0 +1,7 @@
+(define (problem bomb-2)
+  (:domain bomb-toilet)
+  (:objects pkg1 pkg2)
+  (:init (unknown (bomb-in-package pkg1))
+         (unknown (bomb-in-package pkg2))
+         (oneof (bomb-in-package pkg1) (bomb-in-package pkg2)))
+  (:goal (defused)))

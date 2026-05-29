@@ -656,7 +656,8 @@ class PlannerRunner:
             temp_dir = self.setup_temp_dir()
             shutil.copy2(domain_file, temp_dir / "domain.pddl")
             shutil.copy2(problem_file, temp_dir / "problem.pddl")
-            cmd = [str(lpg_exe), "-o", "domain.pddl", "-f", "problem.pddl"]
+            cmd = [str(lpg_exe), "-o", "domain.pddl", "-f", "problem.pddl",
+                   "-out", "plan.sol"]
             # Add mode flags from spec or config name
             spec_args = self._get_spec_args("lpg", resolved_config)
             if spec_args:
@@ -704,8 +705,15 @@ class PlannerRunner:
                 raise FileNotFoundError(f"TFD executable not found at {tfd_exe}")
             solution_file = self.setup_temp_dir() / "tfd_solution.plan"
             cmd = [str(tfd_exe), str(domain_file), str(problem_file), str(solution_file)]
-            if resolved_config not in (None, "", "default"):
-                cmd.append(resolved_config)
+            # TFD's wrapper script accepts a single positional 4th argument: an
+            # option string like "y+Y+a+e+r+O+1+C+1+b" (split on '+' internally).
+            # When omitted, the wrapper applies its built-in default that enables
+            # anytime search ('a'), causing the planner to keep looking for
+            # improved plans until killed. We forward configuration strings from
+            # planner_configurations.yaml so non-anytime behavior is the default.
+            spec_args = self._get_spec_args("tfd", resolved_config)
+            if spec_args:
+                cmd.extend(spec_args)
             if extra_args:
                 cmd.extend(extra_args)
             return {"config": resolved_config, "cmd": cmd, "cwd": str(tfd_dir), "solution_file": solution_file}
@@ -978,22 +986,29 @@ class PlannerRunner:
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("ff", plan_content, "stdout", is_partial=True))
     
     def _extract_ff_plan(self, stdout: str) -> str:
-        """Extract plan from FF output."""
+        """Extract plan from FF output.
+
+        Handles both standard FF sequential plans ("found legal plan as
+        follows") and contingent-FF policy trees ("found plan as follows").
+        """
         lines = stdout.split('\n')
         in_plan = False
         plan_lines = []
-        
+
         for line in lines:
-            if "found legal plan as follows" in line.lower():
+            lower = line.lower()
+            if "found legal plan as follows" in lower or "found plan as follows" in lower:
                 in_plan = True
                 continue
             elif in_plan:
-                if line.strip() and not line.startswith("time spent:"):
-                    if line.strip() != "":
-                        plan_lines.append(line.strip())
-                elif line.startswith("time spent:"):
+                stripped = line.strip()
+                if stripped.startswith("time spent:"):
                     break
-        
+                if stripped.startswith("statistics:") or stripped.startswith("tree layers"):
+                    break
+                if stripped:
+                    plan_lines.append(stripped)
+
         return '\n'.join(plan_lines)
 
     def _extract_temporal_plan(self, stdout: str) -> str:
@@ -1884,7 +1899,13 @@ def main():
     
     args = parser.parse_args(argv)
     runner.live_output = not args.no_live_output
-    
+
+    # In JSON output mode, route all human-readable wrapper output to stderr
+    # so that stdout contains only the final JSON document.
+    _original_stdout = sys.stdout
+    if args.output_format == "json":
+        sys.stdout = sys.stderr
+
     # Handle list commands
     if args.list_planners:
         if runner.spec:
@@ -2042,7 +2063,7 @@ def main():
                 "selected_plan_rank": result.get("selected_plan_rank"),
                 "return_code": result["return_code"]
             }
-            print(json.dumps(output_data, indent=2))
+            print(json.dumps(output_data, indent=2), file=_original_stdout)
         
         # Save full results to file if requested
         if args.output:

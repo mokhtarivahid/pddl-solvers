@@ -39,60 +39,111 @@ class PlannerTestSuite:
             ("ipc-2002", "depots-strips", ["instance-1.pddl"]),
         ]
         
-        self.planner_configs = {
-            "downward": [
-                "astar-lmcut", "astar-ff", "lazy-greedy-ff", 
-                "ehc-ff", "wa-star-ff"
+        # Benchmark categories. Each category lists (domain_relpath, [instances]).
+        # Instances must live under `<domain>/instances/` (IPC layout) or
+        # alongside `domain.pddl` (temporal-domains layout); both are handled
+        # by `find_test_cases_for_category`.
+        self.benchmark_categories = {
+            "classical": [
+                ("ipc-domains/ipc-1998/domains/gripper-round-1-strips",
+                 ["instance-1.pddl", "instance-2.pddl"]),
+                ("ipc-domains/ipc-1998/domains/logistics-round-1-strips",
+                 ["instance-1.pddl"]),
             ],
-            "enhsp": ["sat-hmrp", "gbfs-hadd"],
-            "ff": ["default"],
-            "ff-x": ["default"],
-            "metric-ff": ["default"],
-            "conformant-ff": ["default"],
-            "contingent-ff": ["default"],
-            "probabilistic-ff": ["default"],
-            "madagascar": ["default"],
-            "nextflap": ["default"],
-            "optic": ["default"],
-            "popf": ["default"],
-            "powerlifted": ["default"],
-            "symk": ["default"],
-            "tfd": ["default"],
-            "vhpop": ["default"]
+            "numeric": [
+                ("ipc-domains/ipc-2023/domains/counters-numeric",
+                 ["instance-1.pddl", "instance-2.pddl"]),
+            ],
+            "temporal": [
+                ("temporal-domains/crewplanning-strips",
+                 ["p01.pddl", "p02.pddl"]),
+            ],
+            # Specialist dialects: tiny hand-written PDDL benchmarks under
+            # `tests/benchmarks/` chosen to solve in well under a second so
+            # that every planner is exercised end-to-end on each run.
+            "conformant": [
+                ("tests/benchmarks/conformant", ["problem.pddl"]),
+            ],
+            "contingent": [
+                ("tests/benchmarks/contingent", ["problem.pddl"]),
+            ],
+            "probabilistic": [
+                ("tests/benchmarks/probabilistic", ["problem.pddl"]),
+            ],
+            "partial-order": [
+                ("planners/vhpop/examples",
+                 [("gripper-domain.pddl", "gripper-2.pddl")]),
+            ],
         }
-    
+
+        # Per-planner: which configurations to test and which benchmark
+        # categories the planner can solve. Every planner has at least one
+        # category; if the corresponding domain/problem cannot be found, or
+        # the planner binary is not built, the test runner reports a generic
+        # SKIP without any planner-specific carve-out.
+        self.planner_configs = {
+            "downward":         {"configs": ["default", "satisficing-ff", "satisficing-lmcut"], "categories": ["classical"]},
+            "symk":             {"configs": ["default"],                                       "categories": ["classical"]},
+            "ff":               {"configs": ["default"],                                       "categories": ["classical"]},
+            "ff-x":             {"configs": ["default"],                                       "categories": ["classical"]},
+            "madagascar":       {"configs": ["default"],                                       "categories": ["classical"]},
+            "powerlifted":      {"configs": ["default"],                                       "categories": ["classical"]},
+            "metric-ff":        {"configs": ["default"],                                       "categories": ["classical", "numeric"]},
+            "enhsp":            {"configs": ["default", "satisficing-hmrp"],                   "categories": ["classical", "numeric"]},
+            "optic":            {"configs": ["default"],                                       "categories": ["temporal"]},
+            "popf":             {"configs": ["default"],                                       "categories": ["temporal"]},
+            "tfd":              {"configs": ["default"],                                       "categories": ["temporal"]},
+            "lpg":              {"configs": ["default"],                                       "categories": ["classical"]},
+            "nextflap":         {"configs": ["default"],                                       "categories": ["temporal"]},
+            "conformant-ff":    {"configs": ["default"],                                       "categories": ["conformant"]},
+            "contingent-ff":    {"configs": ["default"],                                       "categories": ["contingent"]},
+            "probabilistic-ff": {"configs": ["default"],                                       "categories": ["probabilistic"]},
+            "vhpop":            {"configs": ["default"],                                       "categories": ["partial-order"]},
+        }
+
+    def find_test_cases_for_category(self, category: str) -> List[Tuple[str, str, str, str]]:
+        """Resolve benchmark entries for `category` to concrete (domain_path, domain_file, problem_file, instance_name) tuples.
+
+        Each entry's directory may be given relative to ``benchmarks/`` (the
+        IPC layout) or relative to the repository root (e.g.
+        ``tests/benchmarks/...`` or ``planners/<planner>/examples`` for
+        bespoke per-planner inputs). Instance entries are either a plain
+        problem filename (paired with a sibling ``domain.pddl``) or an
+        explicit ``(domain_filename, problem_filename)`` tuple.
+        """
+        cases: List[Tuple[str, str, str, str]] = []
+        for domain_path, instances in self.benchmark_categories.get(category, []):
+            # Allow repo-root-relative paths (tests/..., planners/...) so
+            # specialist planners can ship their own tiny benchmarks without
+            # polluting the IPC benchmarks tree.
+            repo_relative = self.repo_root / domain_path
+            full_domain_path = repo_relative if repo_relative.exists() else self.benchmarks_dir / domain_path
+            default_domain_file = full_domain_path / "domain.pddl"
+            # Instances may live in `instances/` (IPC layout) or in the
+            # domain directory itself (temporal-domains layout).
+            search_dirs = [full_domain_path / "instances", full_domain_path]
+            for instance_entry in instances:
+                if isinstance(instance_entry, tuple):
+                    domain_name, instance_name = instance_entry
+                else:
+                    domain_name, instance_name = "domain.pddl", instance_entry
+                for search_dir in search_dirs:
+                    instance_file = search_dir / instance_name
+                    domain_file = search_dir / domain_name if domain_name != "domain.pddl" else default_domain_file
+                    if instance_file.exists() and domain_file.exists():
+                        cases.append((str(domain_path), str(domain_file), str(instance_file), instance_name))
+                        break
+        return cases
+
     def find_available_test_cases(self) -> List[Tuple[str, str, str, str]]:
-        """Find available test cases from benchmark directory."""
-        test_cases = []
-        
+        """Return all available test cases across every benchmark category."""
         if not self.benchmarks_dir.exists():
             print("Warning: Benchmarks directory not found. Run with submodule initialized.")
-            return test_cases
-        
-        # Define a set of simple test cases that should work with most planners
-        simple_cases = [
-            ("ipc-domains/ipc-1998/domains/gripper-round-1-strips", ["instance-1.pddl", "instance-2.pddl"]),
-            ("ipc-domains/ipc-1998/domains/logistics-round-1-strips", ["instance-1.pddl"]),
-        ]
-        
-        for domain_path, instances in simple_cases:
-            full_domain_path = self.benchmarks_dir / domain_path
-            if full_domain_path.exists():
-                domain_file = full_domain_path / "domain.pddl"
-                instances_dir = full_domain_path / "instances"
-                
-                if domain_file.exists() and instances_dir.exists():
-                    for instance_name in instances:
-                        instance_file = instances_dir / instance_name
-                        if instance_file.exists():
-                            test_cases.append((
-                                str(domain_path),
-                                str(domain_file),
-                                str(instance_file), 
-                                instance_name
-                            ))
-        
-        return test_cases
+            return []
+        all_cases: List[Tuple[str, str, str, str]] = []
+        for category in self.benchmark_categories:
+            all_cases.extend(self.find_test_cases_for_category(category))
+        return all_cases
     
     def run_single_test(self, planner: str, config: str, domain_file: str, 
                        problem_file: str, timeout: int = 60) -> Dict:
@@ -100,17 +151,17 @@ class PlannerTestSuite:
         
         cmd = [
             "python3", str(self.runner_script),
-            "--domain", domain_file,
-            "--problem", problem_file, 
             "--planner", planner,
-            "--timeout", str(timeout)
+            "--config", config,
+            "--timeout", str(timeout),
+            "--no-live-output",
+            "--output-format", "json",
+            domain_file,
+            problem_file,
         ]
-        
-        if config != "default":
-            cmd.extend(["--config", config])
-        
+
         print(f"  Running: {planner} ({config}) on {Path(problem_file).name}...")
-        
+
         start_time = time.time()
         try:
             result = subprocess.run(
@@ -120,11 +171,26 @@ class PlannerTestSuite:
                 timeout=timeout + 10,
                 cwd=str(self.repo_root)
             )
-            
+
             runtime = time.time() - start_time
-            
-            # Parse the output to determine success
-            success = result.returncode == 0 and "Success: True" in result.stdout
+
+            # Use the structured JSON report from run_planner.py; many planners
+            # exit 0 even on failure/timeout, so exit code alone is unreliable.
+            success = False
+            executable_missing = False
+            try:
+                report = json.loads(result.stdout)
+                success = bool(report.get("success"))
+            except (json.JSONDecodeError, ValueError):
+                # Non-JSON output usually means the runner aborted before
+                # invoking the planner (e.g. binary not built).
+                combined = (result.stdout or "") + (result.stderr or "")
+                lowered = combined.lower()
+                if ("executable not found" in lowered
+                        or "no executable found" in lowered):
+                    executable_missing = True
+                else:
+                    success = result.returncode == 0
             
             return {
                 "planner": planner,
@@ -132,6 +198,7 @@ class PlannerTestSuite:
                 "domain": domain_file,
                 "problem": problem_file,
                 "success": success,
+                "executable_missing": executable_missing,
                 "runtime": runtime,
                 "return_code": result.returncode,
                 "stdout": result.stdout,
@@ -154,15 +221,14 @@ class PlannerTestSuite:
     def run_planner_tests(self, planners: List[str] = None, 
                          timeout: int = 60) -> Dict[str, List[Dict]]:
         """Run tests for specified planners."""
-        
-        test_cases = self.find_available_test_cases()
-        if not test_cases:
+
+        if not self.benchmarks_dir.exists():
             print("No test cases found. Make sure benchmarks are available.")
             return {}
-        
-        print(f"Found {len(test_cases)} test cases")
-        
-        # Get available planners
+
+        # Get available planners (parse `--list-planners` output;
+        # planner rows start at column 2 with the bare name, followed by
+        # indented `Capabilities:` lines that must be ignored).
         try:
             result = subprocess.run(
                 ["python3", str(self.runner_script), "--list-planners"],
@@ -170,44 +236,67 @@ class PlannerTestSuite:
             )
             available_planners = []
             for line in result.stdout.split('\n'):
-                line = line.strip()
-                if line and not line.startswith('Available planners:'):
-                    available_planners.append(line)
-        except:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("Available") or stripped.startswith("Capabilities:"):
+                    continue
+                token = stripped.split()[0]
+                # Planner names are lowercase identifiers (letters/digits/dash).
+                if token and all(c.isalnum() or c == '-' for c in token) and token == token.lower():
+                    available_planners.append(token)
+        except Exception:
             available_planners = ["downward", "enhsp", "ff"]  # Fallback
-        
+
+        # Default: every planner declared in `planner_configs`.
         if planners is None:
-            planners = available_planners  # Test all available planners by default
-        
-        # Filter planners to only test ones that are available
-        planners = [p for p in planners if p in available_planners]
-        
+            planners = list(self.planner_configs.keys())
+
+        # Filter to planners that are both available and have configs defined.
+        planners = [p for p in planners if p in available_planners and p in self.planner_configs]
+
         print(f"Testing planners: {', '.join(planners)}")
-        
+
         all_results = {}
-        
+
         for planner in planners:
             print(f"\nTesting planner: {planner}")
+            planner_spec = self.planner_configs[planner]
+            categories = planner_spec["categories"]
+            configs = planner_spec["configs"]
+
+            # Collect benchmark cases compatible with this planner's capabilities.
+            test_cases: List[Tuple[str, str, str, str]] = []
+            for category in categories:
+                test_cases.extend(self.find_test_cases_for_category(category))
+
+            if not test_cases:
+                reason = "no available domain/problem"
+                print(f"  SKIP - {reason}")
+                all_results[planner] = []
+                continue
+
             planner_results = []
-            
-            configs = self.planner_configs.get(planner, ["default"])
-            
+            missing_binary = False
             for config in configs:
+                if missing_binary:
+                    break
                 print(f"  Configuration: {config}")
-                
                 for domain_path, domain_file, problem_file, instance_name in test_cases:
                     result = self.run_single_test(
                         planner, config, domain_file, problem_file, timeout
                     )
-                    
+
                     result["domain_path"] = domain_path
                     result["instance_name"] = instance_name
+
+                    if result.get("executable_missing"):
+                        print(f"    SKIP {instance_name} - no binary available")
+                        missing_binary = True
+                        break
+
                     planner_results.append(result)
-                    
-                    # Print summary
                     status = "PASS" if result["success"] else "FAIL"
                     print(f"    {status} {instance_name} ({result['runtime']:.1f}s)")
-            
+
             all_results[planner] = planner_results
         
         return all_results
@@ -231,15 +320,22 @@ class PlannerTestSuite:
         report_lines.append(f"## Summary")
         report_lines.append(f"- Total tests: {total_tests}")
         report_lines.append(f"- Successful: {total_success}")
-        report_lines.append(f"- Success rate: {total_success/total_tests*100:.1f}%")
+        rate = (total_success / total_tests * 100) if total_tests else 0.0
+        report_lines.append(f"- Success rate: {rate:.1f}%")
         report_lines.append("")
-        
+
         # Per-planner results
         for planner, planner_results in results.items():
-            success_count = sum(1 for test in planner_results if test["success"])
             total_count = len(planner_results)
+            if total_count == 0:
+                report_lines.append(f"## {planner.upper()}")
+                report_lines.append("- SKIPPED (no available domain/problem)")
+                report_lines.append("")
+                continue
+
+            success_count = sum(1 for test in planner_results if test["success"])
             avg_runtime = sum(test["runtime"] for test in planner_results) / total_count
-            
+
             report_lines.append(f"## {planner.upper()}")
             report_lines.append(f"- Tests: {success_count}/{total_count}")
             report_lines.append(f"- Success rate: {success_count/total_count*100:.1f}%")
@@ -319,26 +415,10 @@ def main():
     repo_root = Path(__file__).parent.parent.resolve()
     test_suite = PlannerTestSuite(str(repo_root))
     
-    # Adjust configurations for quick test
+    # Quick mode: keep all planners but reduce to a single configuration each.
     if args.quick:
-        test_suite.planner_configs = {
-            "downward": ["astar-lmcut"],
-            "enhsp": ["sat-hmrp"], 
-            "ff": ["default"],
-            "ff-x": ["default"],
-            "metric-ff": ["default"],
-            "conformant-ff": ["default"],
-            "contingent-ff": ["default"],
-            "probabilistic-ff": ["default"],
-            "madagascar": ["default"],
-            "nextflap": ["default"],
-            "optic": ["default"],
-            "popf": ["default"],
-            "powerlifted": ["default"],
-            "symk": ["default"],
-            "tfd": ["default"],
-            "vhpop": ["default"]
-        }
+        for planner, spec in test_suite.planner_configs.items():
+            spec["configs"] = spec["configs"][:1]
     
     print("PDDL Planners Test Suite")
     print("=" * 50)
@@ -370,9 +450,13 @@ def main():
         for planner_results in results.values()
     )
     
-    print(f"Summary: {total_success}/{total_tests} tests passed ({total_success/total_tests*100:.1f}%)")
-    
-    return 0 if total_success > 0 else 1
+    skipped = [p for p, r in results.items() if not r]
+    rate = (total_success / total_tests * 100) if total_tests else 0.0
+    print(f"Summary: {total_success}/{total_tests} tests passed ({rate:.1f}%)")
+    if skipped:
+        print(f"Skipped (no available domain/problem or no binary): {', '.join(skipped)}")
+
+    return 0 if total_tests and total_success == total_tests else 1
 
 
 if __name__ == "__main__":

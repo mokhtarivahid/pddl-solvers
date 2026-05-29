@@ -132,10 +132,3 @@ class PlannerCapabilities:
                 {},
                 f"failed to load {self.spec_file}: {exc}. Falling back to built-in defaults.",
             )
-
-
-# Backward compatibility aliases
-PlannerCapabilityConfigurationCatalog = PlannerCapabilitiesCatalog
-PlannerCapabilityConfigurations = PlannerCapabilities
-PlannerCapabilityCatalog = PlannerCapabilitiesCatalog
-PlannerCapabilitiesSpecification = PlannerCapabilities

@@ -140,16 +140,36 @@ planners:
     
     configurations:
       default:
-        description: "Temporal satisficing planning"
-        args: []
+        description: "Anytime search with internal timeouts (30s after first plan, 60s if none)"
+        args: ["y+Y+a+e+r+O+1+C+1+b+t+30+T+60"]
+
+      first-plan:
+        description: "Stop on the very first valid plan found (no anytime improvement)"
+        args: ["y+Y+e+r+O+1+C+1+b"]
+
+      first-2-plans:
+        description: "Approximate 'first 2 plans': anytime with a tiny 5s budget after the first plan"
+        args: ["y+Y+a+e+r+O+1+C+1+b+t+5+T+60"]
+
+      first-3-plans:
+        description: "Approximate 'first 3 plans': anytime with a small 15s budget after the first plan"
+        args: ["y+Y+a+e+r+O+1+C+1+b+t+15+T+60"]
+
+      anytime:
+        description: "Anytime search: keep improving plans until killed (TFD's built-in default)"
+        args: ["y+Y+a+e+r+O+1+C+1+b"]
+
+      anytime-bounded:
+        description: "Anytime search with internal timeouts (30s after first plan, 60s if none)"
+        args: ["y+Y+a+e+r+O+1+C+1+b+t+30+T+60"]
     
     parameters:
       description: "TFD takes domain, problem, solution_file as arguments"
-      note: "Wrapper automatically provides solution_file path"
+      note: "Wrapper automatically provides solution_file path. The 4th positional argument is a TFD option string (chars/values joined by '+'); see planners/tfd/downward/search/plannerParameters.cc for all options. NOTE: TFD has no built-in 'stop after N plans' option; first-2/3-plans approximate this by using short anytime budgets ('t' seconds after first plan)."
       optional:
         "--config":
           type: "string"
-          description: "Custom TFD search configuration string"
+          description: "Custom TFD option string, e.g. 'y+Y+a+e+r+O+1+C+1+b+t+10+T+10'. Without 'a' TFD stops on first plan; 'a' enables anytime search; 't N' / 'T N' cap anytime time after/before first plan."
 
   optic:
     description: "OPTIC - Optimal Temporal Planning with Consequences"

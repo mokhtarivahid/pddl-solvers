@@ -208,10 +208,10 @@ class AnalysisTestSuite:
             return True
         
         try:
-            # Test analyze-only command
+            # Test analyze command
             cmd = [
                 "python3", str(self.repo_root / "run_planner.py"),
-                "--analyze-only", "-d", str(test_domain)
+                "--analyze", str(test_domain)
             ]
             
             print(f"    Testing command: {' '.join(cmd[-3:])}")

@@ -246,3 +246,6 @@ planners/*-broken-backup/
 
 # Ignore generated results files
 /*.json
+
+# Ignore benchmark test
+benchmarks/test/
