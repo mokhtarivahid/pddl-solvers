@@ -990,10 +990,24 @@ class PlannerRunner:
 
         Handles both standard FF sequential plans ("found legal plan as
         follows") and contingent-FF policy trees ("found plan as follows").
+
+        FF prints lines like ``step    0: CLIMB P0`` followed by indented
+        ``        1: WALK-ON-BEAM_0 P0 P1``. Contingent-FF prints policy-tree
+        nodes like ``0||0 --- CLIMB P0 --- SON: 1||0`` separated by dashed
+        banner lines. In both cases the actions are normalized to the
+        canonical IPC form ``(action arg arg)`` (lowercased) so VAL can
+        validate the plan.
         """
         lines = stdout.split('\n')
         in_plan = False
         plan_lines = []
+        # Matches both "step N: ACT ARG..." and "N: ACT ARG..." (FF wraps the
+        # leading "step" only onto the first line).
+        step_re = re.compile(r"^(?:step\s+)?\d+\s*:\s*(.+)$", re.IGNORECASE)
+        # Matches a contingent-FF tree node line:
+        #   "<id> --- ACTION ARG ARG --- SON: <id>" (or "SONS:", "GOAL", ...)
+        tree_re = re.compile(r"^[^\-]+---\s*(.+?)\s*---\s*(SONS?|GOAL|END)\b",
+                             re.IGNORECASE)
 
         for line in lines:
             lower = line.lower()
@@ -1006,8 +1020,28 @@ class PlannerRunner:
                     break
                 if stripped.startswith("statistics:") or stripped.startswith("tree layers"):
                     break
-                if stripped:
-                    plan_lines.append(stripped)
+                if not stripped:
+                    continue
+                # Banner lines like "---------------" in contingent-FF output.
+                if set(stripped) <= {"-"}:
+                    continue
+                m = step_re.match(stripped)
+                if m:
+                    action = m.group(1).strip().lower()
+                    if not action.startswith("("):
+                        action = f"({action})"
+                    plan_lines.append(action)
+                    continue
+                tm = tree_re.match(stripped)
+                if tm:
+                    action = tm.group(1).strip().lower()
+                    if not action.startswith("("):
+                        action = f"({action})"
+                    plan_lines.append(action)
+                    continue
+                # Unrecognized in-plan line: keep verbatim so downstream
+                # consumers still see the original output.
+                plan_lines.append(stripped)
 
         return '\n'.join(plan_lines)
 
@@ -1023,9 +1057,16 @@ class PlannerRunner:
         return '\n'.join(plan_lines)
 
     def _extract_madagascar_plan(self, stdout: str) -> str:
-        """Extract plan lines from MADAGASCAR output."""
+        """Extract plan lines from MADAGASCAR output.
+
+        MADAGASCAR prints lines like ``STEP 0: climb(p0)`` (function-call
+        notation with comma-separated args). They are rewritten to the
+        canonical IPC form ``(climb p0)`` so VAL can validate the plan.
+        """
         plan_lines = []
         in_plan = False
+        step_re = re.compile(r"^STEP\s+\d+\s*:\s*(.+)$", re.IGNORECASE)
+        call_re = re.compile(r"^([A-Za-z_][\w\-]*)\s*\((.*)\)\s*$")
 
         for raw_line in stdout.splitlines():
             line = raw_line.strip()
@@ -1034,8 +1075,21 @@ class PlannerRunner:
                 continue
 
             if in_plan:
-                if line.startswith("STEP "):
-                    plan_lines.append(line)
+                m = step_re.match(line)
+                if m:
+                    body = m.group(1).strip()
+                    cm = call_re.match(body)
+                    if cm:
+                        name = cm.group(1)
+                        args = [a.strip() for a in cm.group(2).split(",") if a.strip()]
+                        action = f"({name} {' '.join(args)})".strip()
+                        # Drop trailing space if no args -> "(name)"
+                        action = action.replace(" )", ")").lower()
+                    else:
+                        action = body.lower()
+                        if not action.startswith("("):
+                            action = f"({action})"
+                    plan_lines.append(action)
                     continue
                 if "actions in the plan" in line.lower() or line.startswith("total time"):
                     break
