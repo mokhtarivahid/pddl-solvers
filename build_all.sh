@@ -581,6 +581,16 @@ build_tfd() {
 }
 
 build_vhpop() {
+    # Upstream VHPOP does not ship configure/Makefile.in and uses -Werror,
+    # which fails on modern GCC (std::binary_function deprecation).
+    # scripts/patch_vhpop.sh runs autoreconf and relaxes that one warning,
+    # all in the local working tree (submodule has ignore=dirty in .gitmodules).
+    if [[ -x scripts/patch_vhpop.sh ]]; then
+        log_info "Preparing VHPOP (autoreconf + local patch)..."
+        if ! scripts/patch_vhpop.sh planners/vhpop >/dev/null 2>&1; then
+            log_warning "scripts/patch_vhpop.sh failed; VHPOP build will likely fail."
+        fi
+    fi
     build_planner "VHPOP" "planners/vhpop" "./configure && make"
 }
 
