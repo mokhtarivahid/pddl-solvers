@@ -978,6 +978,19 @@ class PlannerRunner:
                 cmd.extend(extra_args)
             return {"profile": resolved_profile, "cmd": cmd, "cwd": str(powerlifted_dir), "plan_file": plan_file}
 
+        if planner == "nextflap":
+            nextflap_dir = self.planners_dir / "nextflap"
+            nextflap_exe = nextflap_dir / "nextflap"
+            if not nextflap_exe.exists():
+                raise FileNotFoundError(f"NextFLAP executable not found at {nextflap_exe}")
+            cmd = [str(nextflap_exe), str(domain_file), str(problem_file)]
+            spec_args = self._get_spec_args("nextflap", resolved_profile)
+            if spec_args:
+                cmd.extend(spec_args)
+            if extra_args:
+                cmd.extend(extra_args)
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(nextflap_dir)}
+
         if planner == "symk":
             symk_dir = self.planners_dir / "symk"
             symk_exe = symk_dir / "fast-downward.py"
@@ -1564,6 +1577,8 @@ class PlannerRunner:
             return self.run_optic(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "popf":
             return self.run_popf(domain_file, problem_file, profile, timeout, extra_args)
+        elif planner == "nextflap":
+            return self.run_nextflap(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "powerlifted":
             return self.run_powerlifted(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "symk":
@@ -1854,6 +1869,172 @@ class PlannerRunner:
     def _extract_optic_plan(self, stdout: str) -> str:
         """Extract plan from OPTIC output."""
         return self._extract_temporal_plan(stdout)
+
+    def _split_nextflap_solutions(self, stdout: str) -> List[Dict[str, Any]]:
+        """Split NextFLAP anytime stdout into one block per emitted plan.
+
+        NextFLAP keeps printing improved plans until it is interrupted. Each
+        plan looks like::
+
+            .0.000: (move-down-slow ...) [12.000]
+            0.000: (move-up-slow ...) [12.000]
+            ...
+            ;Makespan: 93009
+            ;Solution found in 46.765
+
+        The leading ``.`` on the first action of every new plan marks the
+        start of that solution and is stripped here. Each block carries
+        its makespan (in milliseconds, per NextFLAP convention) and the
+        wall-clock time at which it was found.
+        """
+        blocks: List[Dict[str, Any]] = []
+        current: List[str] = []
+        makespan_ms: Optional[float] = None
+        found_in: Optional[float] = None
+        action_re = re.compile(r"^\.?\s*(\d+(?:\.\d+)?)\s*:\s*(\(.+?\))\s*\[([^\]]+)\]\s*$")
+        for raw in stdout.splitlines():
+            line = raw.rstrip()
+            if not line:
+                continue
+            mk = re.match(r"^\s*;\s*Makespan\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*$", line, re.IGNORECASE)
+            if mk:
+                makespan_ms = float(mk.group(1))
+                continue
+            sf = re.match(r"^\s*;\s*Solution\s+found\s+in\s+([0-9]+(?:\.[0-9]+)?)\s*$", line, re.IGNORECASE)
+            if sf:
+                found_in = float(sf.group(1))
+                if current:
+                    blocks.append({
+                        "lines": current,
+                        "makespan_ms": makespan_ms,
+                        "found_in": found_in,
+                        "complete": True,
+                    })
+                current = []
+                makespan_ms = None
+                found_in = None
+                continue
+            stripped = line.lstrip()
+            if stripped.startswith(";"):
+                # Skip other comment lines (timing, heuristic traces, etc.).
+                continue
+            m = action_re.match(stripped)
+            if not m:
+                continue
+            # New solution starts whenever an action line begins with '.'.
+            if stripped.startswith(".") and current:
+                blocks.append({
+                    "lines": current,
+                    "makespan_ms": makespan_ms,
+                    "found_in": found_in,
+                    "complete": False,
+                })
+                current = []
+                makespan_ms = None
+                found_in = None
+            t_str, call, dur = m.group(1), m.group(2), m.group(3).strip()
+            current.append(f"{t_str}: {call.lower()} [{dur}]")
+        if current:
+            blocks.append({
+                "lines": current,
+                "makespan_ms": makespan_ms,
+                "found_in": found_in,
+                "complete": False,
+            })
+        return blocks
+
+    def _nextflap_plans_from_stdout(
+        self,
+        stdout: str,
+        is_partial: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Build structured plan entries (one per anytime solution) from
+        NextFLAP stdout. Incomplete trailing chunks (no ``;Makespan:`` /
+        ``;Solution found in`` terminator) are dropped, so the selected
+        plan is always the last fully-emitted solution.
+
+        ``is_partial`` here means the planner did not exit cleanly (e.g.
+        timeout interrupted the search). It is still applied to every
+        emitted plan because, while each one is a complete plan, NextFLAP
+        was not allowed to converge to its optimum.
+        """
+        blocks = [b for b in self._split_nextflap_solutions(stdout) if b.get("complete")]
+        if not blocks:
+            return []
+        plans: List[Dict[str, Any]] = []
+        last_idx = len(blocks) - 1
+        for i, block in enumerate(blocks):
+            text = "\n".join(block["lines"])
+            steps = self._steps_from_temporal(block["lines"])
+            entry = self._build_plan_entry(
+                "nextflap",
+                text,
+                "stdout",
+                rank=i + 1,
+                source_name=f"solution_{i + 1}",
+                is_partial=is_partial,
+                is_selected=(i == last_idx),
+                steps=steps,
+            )
+            if block.get("makespan_ms") is not None and entry.get("makespan") is None:
+                # NextFLAP reports makespan in milliseconds.
+                entry["makespan"] = block["makespan_ms"] / 1000.0
+            if block.get("found_in") is not None:
+                entry["found_in"] = block["found_in"]
+            plans.append(entry)
+        return plans
+
+    def run_nextflap(self, domain_file: Path, problem_file: Path,
+                     profile: str, timeout: int,
+                     extra_args: Optional[List[str]] = None) -> Dict:
+        """Run NextFLAP temporal-numeric planner.
+
+        NextFLAP is anytime: it never exits on its own and keeps printing
+        improved plans until it receives a signal. We let the timeout fire
+        and harvest every solution from the captured stdout; the last one
+        is selected (best-known plan when interrupted).
+        """
+        bundle = self.prepare_planner_command(
+            "nextflap", domain_file, problem_file, profile, timeout, extra_args
+        )
+        cmd = bundle["cmd"]
+        nextflap_dir = bundle["cwd"]
+
+        print(f"Running NextFLAP with command: {self.format_command(cmd)}")
+
+        start_time = time.time()
+        captured_stdout = ""
+        return_code = 0
+        timeout_exc: Optional[subprocess.TimeoutExpired] = None
+        try:
+            result = self._run_subprocess(cmd, cwd=nextflap_dir, timeout=timeout)
+            captured_stdout = result.stdout
+            return_code = result.returncode
+        except subprocess.TimeoutExpired as exc:
+            timeout_exc = exc
+            captured_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
+
+        runtime = time.time() - start_time
+        plans = self._nextflap_plans_from_stdout(captured_stdout, is_partial=timeout_exc is not None)
+        plan_text = self._selected_plan_text(plans)
+
+        if timeout_exc is not None:
+            timeout_result = self._build_timeout_response(
+                "nextflap", profile, timeout, start_time, timeout_exc, plan_text
+            )
+            return self._finalize_result_plans(timeout_result, plans)
+
+        result_data = {
+            "planner": "nextflap",
+            "profile": profile,
+            "success": return_code == 0 and bool(plan_text.strip()),
+            "runtime": runtime,
+            "plan": plan_text,
+            "stdout": captured_stdout,
+            "stderr": "",
+            "return_code": return_code,
+        }
+        return self._finalize_result_plans(result_data, plans)
     
     def run_popf(self, domain_file: Path, problem_file: Path,
                  profile: str, timeout: int,

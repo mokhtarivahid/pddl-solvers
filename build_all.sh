@@ -564,16 +564,24 @@ build_popf() {
 }
 
 build_nextflap() {
-    # NextFLAP is Java-based, check if it has a build script
-    if [ -f "planners/nextflap/compile.sh" ]; then
-        build_planner "NextFLAP" "planners/nextflap" "./compile.sh"
-    elif [ -f "planners/nextflap/build.xml" ]; then
-        build_planner "NextFLAP" "planners/nextflap" "ant"
-    else
-        log_warning "NextFLAP: No known build method found"
-        SKIPPED_LIST+=("NextFLAP (no build method)")
+    # NextFLAP is a C++ planner (despite the historic Java-build probe
+    # that used to live here). It ships its own GNU `makefile` and a
+    # bundled libz3.so under planners/nextflap/z3/lib/. On modern
+    # toolchains (gcc 13+, libstdc++ 13 in C++20 mode) the build fails
+    # because sas/sasTask.cpp calls std::find without including
+    # <algorithm>; scripts/patch_nextflap.sh adds that include in-place
+    # without modifying the upstream submodule beyond a working-tree fix.
+    if [ ! -f "planners/nextflap/makefile" ]; then
+        log_warning "NextFLAP: makefile not found"
+        SKIPPED_LIST+=("NextFLAP (no makefile)")
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+        return
     fi
+    if [ -x "scripts/patch_nextflap.sh" ]; then
+        scripts/patch_nextflap.sh planners/nextflap >/dev/null 2>&1 \
+            || log_warning "NextFLAP: patch_nextflap.sh failed; trying build anyway"
+    fi
+    build_planner "NextFLAP" "planners/nextflap" "make"
 }
 
 build_tfd() {

@@ -68,8 +68,8 @@ priority:
     Classical Planning: [downward, symk, ff, madagascar, powerlifted]
     ADL Planning: [downward, symk, ff-x, ff, lpg]
     Numeric Planning: [enhsp, metric-ff, downward, lpg]
-    Temporal Planning: [optic, popf, tfd, lpg, vhpop]
-    Temporal-Numeric Planning: [optic, popf, tfd, lpg]
+    Temporal Planning: [optic, popf, tfd, lpg, vhpop, nextflap]
+    Temporal-Numeric Planning: [optic, popf, tfd, lpg, nextflap]
     Probabilistic Planning: [probabilistic-ff, contingent-ff, conformant-ff]
 
 # Optional runtime behavior overrides and suppression blocks.
@@ -297,16 +297,33 @@ planners:
 
   nextflap:
     name: NextFLAP
-    pddl_version: PDDL 1.2
-    description: Learning-based planner.
-    notes: Experimental learning-based approach.
-    performance_category: medium
-    reliability: low
-    optimization: false
-    temporal: false
+    pddl_version: PDDL 2.1 (level 3) + 3.0 timed-initial-literals
+    description: Anytime temporal-numeric forward-chaining planner with FLAP/SAS+ search and Z3-based time-constraint checking.
+    notes: Anytime planner; keeps emitting improved plans until interrupted by the timeout. Supports durative actions with continuous numeric effects, control variables in durations, required concurrency, and timed initial literals. Bundles Z3 for scheduling checks.
+    performance_category: high
+    reliability: high
+    optimization: true
+    temporal: true
     temporal_only: false
-    approach_tags: [classical, hybrid]
-    supported_requirements: [strips, typing, negative-preconditions]
+    approach_tags: [classical, temporal, numeric, anytime, satisficing, forward-chaining]
+    supported_requirements:
+      - strips
+      - typing
+      - negative-preconditions
+      - disjunctive-preconditions
+      - equality
+      - existential-preconditions
+      - universal-preconditions
+      - quantified-preconditions
+      - conditional-effects
+      - adl
+      - durative-actions
+      - duration-inequalities
+      - continuous-effects
+      - numeric-fluents
+      - fluents
+      - timed-initial-literals
+      - action-costs
 
   ff-x:
     name: FF-X

@@ -372,16 +372,29 @@ planners:
         args: []
 
   nextflap:
-    description: "NextFLAP - Forward-chaining temporal planner"
+    description: "NextFLAP - Anytime temporal-numeric forward-chaining planner with Z3 scheduling"
     executable: "nextflap"
     requires: []
     capabilities:
+      - temporal
+      - numeric
+      - durative-actions
+      - anytime
       - satisficing
     
     profiles:
       default:
-        description: "Forward-chaining planning"
+        description: "Anytime temporal planning (interrupt on timeout, keep best plan)"
         args: []
+      grounded:
+        description: "Emit GroundedDomain.pddl / GroundedProblem.pddl alongside planning"
+        args: ["-ground"]
+      keep-static:
+        description: "Keep static facts in the planning task (no static-data pruning)"
+        args: ["-static"]
+      no-sas:
+        description: "Skip translation to finite-domain SAS+ variables"
+        args: ["-nsas"]
 
   vhpop:
     description: "VHPOP - Verification of Hierarchical Partial Order Planner"
