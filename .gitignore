@@ -131,6 +131,9 @@
 **/*.smt
 **/graph.*
 **/L*
+# Do not let the **/L* rule above eat LPG's LocalSearch source directory
+!planners/lpg/LocalSearch/
+!planners/lpg/LocalSearch/**
 
 # Solver-specific temporary files
 **/CNF
