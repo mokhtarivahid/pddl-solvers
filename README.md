@@ -305,6 +305,8 @@ View the full specification:
 
 ### Build Status
 
+All planners in the collection build successfully on Ubuntu 24.04 / GCC 13 via `./build_all.sh`.
+
 | Planner | Status | Notes |
 |---------|--------| ----- |
 | **Fast Downward** | Working | Multiple search algorithms |
@@ -321,8 +323,8 @@ View the full specification:
 | **OPTIC** | Working | Temporal planning |
 | **POPF** | Working | Temporal planning |
 | **TFD** | Working | Temporal planning (only on temporal domains) |
-| **VHPOP** | Incomplete | Missing vhpop executable |
-| **NextFLAP** | Build Issues | C++20 compatibility |
+| **VHPOP** | Working | Partial-order planner; built via `scripts/patch_vhpop.sh` (modern flex/bison fixes) |
+| **NextFLAP** | Working | Anytime temporal-numeric planner; built via `scripts/patch_nextflap.sh` (adds `<algorithm>` for gcc 13 / libstdc++ 13) |
 | **PowerLifted** | Working | Lifted-clause planning |
 
 ### Key Features
