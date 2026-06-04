@@ -1095,7 +1095,47 @@ class PlannerRunner:
                     break
 
         return '\n'.join(plan_lines)
-    
+
+    def _extract_vhpop_plan(self, stdout: str) -> str:
+        """Extract plan lines from VHPOP output.
+
+        VHPOP prints a plan block like::
+
+            ;beam-walk-2
+            Makespan: 2
+            1:(climb p0)
+            2:(walk-on-beam_0 p0 p1)
+            Time: 0
+
+        The ``Makespan:`` / ``Time:`` lines and any leading comment lines
+        (``;...``) cause VAL's plan parser to reject the file with
+        "Bad plan description!". This helper strips them and rewrites
+        each numbered ``N:(action ...)`` step to the canonical IPC form
+        ``(action ...)`` so VAL accepts the plan.
+        """
+        plan_lines = []
+        # Match "N:(action ...)" or "N: (action ...)" (with optional whitespace).
+        step_re = re.compile(r"^\d+\s*:\s*(\(.+\))\s*$")
+
+        for raw_line in stdout.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(";"):
+                continue
+            # Drop VHPOP metadata lines.
+            if re.match(r"^(makespan|time)\s*:", line, re.IGNORECASE):
+                continue
+            m = step_re.match(line)
+            if m:
+                plan_lines.append(m.group(1).lower())
+                continue
+            # A bare "(action ...)" form (e.g. some VHPOP variants).
+            if line.startswith("("):
+                plan_lines.append(line.lower())
+
+        return "\n".join(plan_lines)
+
     # ------------------------------------------------------------------
     # VAL plan validation
     # ------------------------------------------------------------------
@@ -1422,8 +1462,11 @@ class PlannerRunner:
             )
             
             runtime = time.time() - start_time
-            
-            plan_content = result.stdout.strip()
+
+            # Normalize VHPOP's stdout into a VAL-friendly plan (one
+            # "(action arg ...)" per line, stripping ;-comments and
+            # "Makespan:"/"Time:" metadata lines).
+            plan_content = self._extract_vhpop_plan(result.stdout)
             plans = self._plans_from_text_block("vhpop", plan_content, "stdout")
 
             result_data = {
@@ -1440,10 +1483,11 @@ class PlannerRunner:
             
         except subprocess.TimeoutExpired as exc:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
+            partial_plan = self._extract_vhpop_plan(partial_stdout)
             timeout_result = self._build_timeout_response(
-                "vhpop", profile, timeout, start_time, exc, partial_stdout.strip()
+                "vhpop", profile, timeout, start_time, exc, partial_plan
             )
-            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("vhpop", partial_stdout.strip(), "stdout", is_partial=True))
+            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("vhpop", partial_plan, "stdout", is_partial=True))
     
     def run_tfd(self, domain_file: Path, problem_file: Path,
                 profile: str, timeout: int,
