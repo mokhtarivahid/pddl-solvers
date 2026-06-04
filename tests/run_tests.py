@@ -31,7 +31,7 @@ class PlannerTestSuite:
         # Ensure results directory exists
         self.results_dir.mkdir(parents=True, exist_ok=True)
         
-        # Test configurations
+        # Test profiles
         self.test_domains = [
             ("ipc-1998", "gripper-round-1-strips", ["instance-1.pddl", "instance-2.pddl"]),
             ("ipc-1998", "logistics-round-1-strips", ["instance-1.pddl"]),
@@ -76,29 +76,29 @@ class PlannerTestSuite:
             ],
         }
 
-        # Per-planner: which configurations to test and which benchmark
+        # Per-planner: which profiles to test and which benchmark
         # categories the planner can solve. Every planner has at least one
         # category; if the corresponding domain/problem cannot be found, or
         # the planner binary is not built, the test runner reports a generic
         # SKIP without any planner-specific carve-out.
-        self.planner_configs = {
-            "downward":         {"configs": ["default", "satisficing-ff", "satisficing-lmcut"], "categories": ["classical"]},
-            "symk":             {"configs": ["default"],                                       "categories": ["classical"]},
-            "ff":               {"configs": ["default"],                                       "categories": ["classical"]},
-            "ff-x":             {"configs": ["default"],                                       "categories": ["classical"]},
-            "madagascar":       {"configs": ["default"],                                       "categories": ["classical"]},
-            "powerlifted":      {"configs": ["default"],                                       "categories": ["classical"]},
-            "metric-ff":        {"configs": ["default"],                                       "categories": ["classical", "numeric"]},
-            "enhsp":            {"configs": ["default", "satisficing-hmrp"],                   "categories": ["classical", "numeric"]},
-            "optic":            {"configs": ["default"],                                       "categories": ["temporal"]},
-            "popf":             {"configs": ["default"],                                       "categories": ["temporal"]},
-            "tfd":              {"configs": ["default"],                                       "categories": ["temporal"]},
-            "lpg":              {"configs": ["default"],                                       "categories": ["classical"]},
-            "nextflap":         {"configs": ["default"],                                       "categories": ["temporal"]},
-            "conformant-ff":    {"configs": ["default"],                                       "categories": ["conformant"]},
-            "contingent-ff":    {"configs": ["default"],                                       "categories": ["contingent"]},
-            "probabilistic-ff": {"configs": ["default"],                                       "categories": ["probabilistic"]},
-            "vhpop":            {"configs": ["default"],                                       "categories": ["partial-order"]},
+        self.planner_profiles = {
+            "downward":         {"profiles": ["default", "satisficing-ff", "satisficing-lmcut"], "categories": ["classical"]},
+            "symk":             {"profiles": ["default"],                                       "categories": ["classical"]},
+            "ff":               {"profiles": ["default"],                                       "categories": ["classical"]},
+            "ff-x":             {"profiles": ["default"],                                       "categories": ["classical"]},
+            "madagascar":       {"profiles": ["default"],                                       "categories": ["classical"]},
+            "powerlifted":      {"profiles": ["default"],                                       "categories": ["classical"]},
+            "metric-ff":        {"profiles": ["default"],                                       "categories": ["classical", "numeric"]},
+            "enhsp":            {"profiles": ["default", "satisficing-hmrp"],                   "categories": ["classical", "numeric"]},
+            "optic":            {"profiles": ["default"],                                       "categories": ["temporal"]},
+            "popf":             {"profiles": ["default"],                                       "categories": ["temporal"]},
+            "tfd":              {"profiles": ["default"],                                       "categories": ["temporal"]},
+            "lpg":              {"profiles": ["default"],                                       "categories": ["classical"]},
+            "nextflap":         {"profiles": ["default"],                                       "categories": ["temporal"]},
+            "conformant-ff":    {"profiles": ["default"],                                       "categories": ["conformant"]},
+            "contingent-ff":    {"profiles": ["default"],                                       "categories": ["contingent"]},
+            "probabilistic-ff": {"profiles": ["default"],                                       "categories": ["probabilistic"]},
+            "vhpop":            {"profiles": ["default"],                                       "categories": ["partial-order"]},
         }
 
     def find_test_cases_for_category(self, category: str) -> List[Tuple[str, str, str, str]]:
@@ -145,14 +145,14 @@ class PlannerTestSuite:
             all_cases.extend(self.find_test_cases_for_category(category))
         return all_cases
     
-    def run_single_test(self, planner: str, config: str, domain_file: str, 
+    def run_single_test(self, planner: str, profile: str, domain_file: str, 
                        problem_file: str, timeout: int = 60) -> Dict:
         """Run a single test case."""
         
         cmd = [
             "python3", str(self.runner_script),
             "--planner", planner,
-            "--config", config,
+            "--profile", profile,
             "--timeout", str(timeout),
             "--no-live-output",
             "--output-format", "json",
@@ -160,7 +160,7 @@ class PlannerTestSuite:
             problem_file,
         ]
 
-        print(f"  Running: {planner} ({config}) on {Path(problem_file).name}...")
+        print(f"  Running: {planner} ({profile}) on {Path(problem_file).name}...")
 
         start_time = time.time()
         try:
@@ -194,7 +194,7 @@ class PlannerTestSuite:
             
             return {
                 "planner": planner,
-                "config": config, 
+                "profile": profile, 
                 "domain": domain_file,
                 "problem": problem_file,
                 "success": success,
@@ -208,7 +208,7 @@ class PlannerTestSuite:
         except subprocess.TimeoutExpired:
             return {
                 "planner": planner,
-                "config": config,
+                "profile": profile,
                 "domain": domain_file, 
                 "problem": problem_file,
                 "success": False,
@@ -246,12 +246,12 @@ class PlannerTestSuite:
         except Exception:
             available_planners = ["downward", "enhsp", "ff"]  # Fallback
 
-        # Default: every planner declared in `planner_configs`.
+        # Default: every planner declared in `planner_profiles`.
         if planners is None:
-            planners = list(self.planner_configs.keys())
+            planners = list(self.planner_profiles.keys())
 
-        # Filter to planners that are both available and have configs defined.
-        planners = [p for p in planners if p in available_planners and p in self.planner_configs]
+        # Filter to planners that are both available and have profiles defined.
+        planners = [p for p in planners if p in available_planners and p in self.planner_profiles]
 
         print(f"Testing planners: {', '.join(planners)}")
 
@@ -259,9 +259,9 @@ class PlannerTestSuite:
 
         for planner in planners:
             print(f"\nTesting planner: {planner}")
-            planner_spec = self.planner_configs[planner]
+            planner_spec = self.planner_profiles[planner]
             categories = planner_spec["categories"]
-            configs = planner_spec["configs"]
+            profiles = planner_spec["profiles"]
 
             # Collect benchmark cases compatible with this planner's capabilities.
             test_cases: List[Tuple[str, str, str, str]] = []
@@ -276,13 +276,13 @@ class PlannerTestSuite:
 
             planner_results = []
             missing_binary = False
-            for config in configs:
+            for profile in profiles:
                 if missing_binary:
                     break
-                print(f"  Configuration: {config}")
+                print(f"  Profile: {profile}")
                 for domain_path, domain_file, problem_file, instance_name in test_cases:
                     result = self.run_single_test(
-                        planner, config, domain_file, problem_file, timeout
+                        planner, profile, domain_file, problem_file, timeout
                     )
 
                     result["domain_path"] = domain_path
@@ -343,14 +343,14 @@ class PlannerTestSuite:
             report_lines.append("")
             
             # Detailed results table
-            report_lines.append("| Config | Domain | Instance | Success | Runtime |")
+            report_lines.append("| Profile | Domain | Instance | Success | Runtime |")
             report_lines.append("|--------|---------|----------|---------|----------|")
             
             for test in planner_results:
                 domain_name = Path(test["domain_path"]).name
                 status = "PASS" if test["success"] else "FAIL"
                 report_lines.append(
-                    f"| {test['config']} | {domain_name} | {test['instance_name']} | "
+                    f"| {test['profile']} | {domain_name} | {test['instance_name']} | "
                     f"{status} | {test['runtime']:.1f}s |"
                 )
             
@@ -407,7 +407,7 @@ def main():
     parser.add_argument("--output-json",
                        help="Output file for detailed JSON results")
     parser.add_argument("--quick", action="store_true",
-                       help="Run only quick tests (fewer configurations)")
+                       help="Run only quick tests (fewer profiles)")
     
     args = parser.parse_args()
     
@@ -415,10 +415,10 @@ def main():
     repo_root = Path(__file__).parent.parent.resolve()
     test_suite = PlannerTestSuite(str(repo_root))
     
-    # Quick mode: keep all planners but reduce to a single configuration each.
+    # Quick mode: keep all planners but reduce to a single profile each.
     if args.quick:
-        for planner, spec in test_suite.planner_configs.items():
-            spec["configs"] = spec["configs"][:1]
+        for planner, spec in test_suite.planner_profiles.items():
+            spec["profiles"] = spec["profiles"][:1]
     
     print("PDDL Planners Test Suite")
     print("=" * 50)

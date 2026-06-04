@@ -37,3 +37,7 @@
 [submodule "benchmarks/ipc-domains"]
 	path = benchmarks/ipc-domains
 	url = https://github.com/plaans/tyr-ipc-domains.git
+[submodule "VAL"]
+	path = VAL
+	url = https://github.com/KCL-Planning/VAL.git
+	ignore = dirty

@@ -1,6 +1,6 @@
-# PDDL Solvers - Planner Configurations File
+# PDDL Solvers - Planner Profiles File
 #
-# This file defines planner invocation details: executables, configurations,
+# This file defines planner invocation details: executables, profiles,
 # and command-line parameters used by run_planner.py.
 #
 # Planner capability matching and recommendation logic is defined separately in
@@ -12,7 +12,7 @@
 #   - executable: Path to executable (relative to planner directory)
 #   - requires: List of PDDL requirements (e.g., "temporal", "durative-actions")
 #   - capabilities: What this planner supports
-#   - configurations: Named configs (e.g., "optimal", "satisficing")
+#   - profiles: Named profiles (e.g., "optimal", "satisficing")
 #   - parameters: Optional planner-specific flags/arguments
 
 planners:
@@ -25,7 +25,7 @@ planners:
       - satisficing
       - multi-search
     
-    configurations:
+    profiles:
       default:
         description: "Single optimal plan with A* and LM-cut heuristic"
         search: "astar(lmcut())"
@@ -71,7 +71,7 @@ planners:
       - axioms
       - conditional-effects
     
-    configurations:
+    profiles:
       default:
         description: "Single optimal plan, bidirectional search"
         search: "sym_bd()"
@@ -127,7 +127,7 @@ planners:
           description: "Pass to translator (e.g., --keep-no-ops to include all actions)"
         "--search":
           type: "string"
-          description: "Custom search command (overrides config)"
+          description: "Custom search command (overrides profile)"
 
   tfd:
     description: "Temporal Fast Downward - Temporal planning"
@@ -138,7 +138,7 @@ planners:
       - temporal
       - satisficing
     
-    configurations:
+    profiles:
       default:
         description: "Anytime search with internal timeouts (30s after first plan, 60s if none)"
         args: ["y+Y+a+e+r+O+1+C+1+b+t+30+T+60"]
@@ -167,7 +167,7 @@ planners:
       description: "TFD takes domain, problem, solution_file as arguments"
       note: "Wrapper automatically provides solution_file path. The 4th positional argument is a TFD option string (chars/values joined by '+'); see planners/tfd/downward/search/plannerParameters.cc for all options. NOTE: TFD has no built-in 'stop after N plans' option; first-2/3-plans approximate this by using short anytime budgets ('t' seconds after first plan)."
       optional:
-        "--config":
+        "--profile":
           type: "string"
           description: "Custom TFD option string, e.g. 'y+Y+a+e+r+O+1+C+1+b+t+10+T+10'. Without 'a' TFD stops on first plan; 'a' enables anytime search; 't N' / 'T N' cap anytime time after/before first plan."
 
@@ -181,7 +181,7 @@ planners:
       - optimal
       - constraints
     
-    configurations:
+    profiles:
       default:
         description: "Optimal temporal planning"
         args: ["-N"]
@@ -220,7 +220,7 @@ planners:
       - satisficing
       - constraints
     
-    configurations:
+    profiles:
       default:
         description: "Temporal satisficing planning"
         args: []
@@ -243,7 +243,7 @@ planners:
       - optimal
       - satisficing
     
-    configurations:
+    profiles:
       default:
         description: "Satisficing numeric planning"
         search: "sat-hmrp"
@@ -271,7 +271,7 @@ planners:
       - satisficing
       - strips
     
-    configurations:
+    profiles:
       default:
         description: "Satisficing STRIPS planning"
         args: []
@@ -295,7 +295,7 @@ planners:
       - numeric
       - satisficing
     
-    configurations:
+    profiles:
       default:
         description: "Metric satisficing planning"
         args: []
@@ -309,7 +309,7 @@ planners:
       - conformant
       - incomplete-info
     
-    configurations:
+    profiles:
       default:
         description: "Conformant planning"
         args: []
@@ -324,7 +324,7 @@ planners:
       - contingent
       - sensing
     
-    configurations:
+    profiles:
       default:
         description: "Contingent planning with actions and sensing"
         args: []
@@ -338,7 +338,7 @@ planners:
       - satisficing
       - sat-based
     
-    configurations:
+    profiles:
       default:
         description: "Recommended default (Mp): planning heuristic enabled, algorithm B default."
         args: []
@@ -366,7 +366,7 @@ planners:
     capabilities:
       - lifted-search
     
-    configurations:
+    profiles:
       default:
         description: "Lifted-clause planning"
         args: []
@@ -378,7 +378,7 @@ planners:
     capabilities:
       - satisficing
     
-    configurations:
+    profiles:
       default:
         description: "Forward-chaining planning"
         args: []
@@ -391,7 +391,7 @@ planners:
       - hierarchical
       - htn
     
-    configurations:
+    profiles:
       default:
         description: "Hierarchical task network planning"
         args: []
@@ -406,7 +406,7 @@ planners:
       - uncertainty
       - adl
     
-    configurations:
+    profiles:
       default:
         description: "Probabilistic satisficing planning"
         args: []
@@ -421,7 +421,7 @@ planners:
       - adl
       - derived-predicates
     
-    configurations:
+    profiles:
       default:
         description: "Extended FF planning"
         args: []
@@ -438,7 +438,7 @@ planners:
       - derived-predicates
       - timed-initial-literals
     
-    configurations:
+    profiles:
       default:
         description: "Recommended default: lpg in quality mode (optimize plan quality)."
         args: ["-quality"]

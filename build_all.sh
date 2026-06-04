@@ -33,6 +33,7 @@ declare -a SELECTED_PLANNERS=()
 declare -a ALL_PLANNERS=(
     "downward" "symk" "enhsp" "optic" "powerlifted" "popf" "nextflap" "tfd" "vhpop" "madagascar"
     "ff" "ff-x" "metric-ff" "conformant-ff" "contingent-ff" "probabilistic-ff" "lpg"
+    "val"
 )
 
 # Arrays to track results
@@ -139,6 +140,11 @@ clean_planner_artifacts() {
     local planner_key=$1
     local planner_dir="planners/$planner_key"
 
+    # VAL is a validation tool, not a planner; it lives at the repo root.
+    if [[ "$planner_key" == "val" ]]; then
+        planner_dir="VAL"
+    fi
+
     if [[ ! -d "$planner_dir" ]]; then
         log_warning "$planner_key directory not found for cleaning: $planner_dir"
         return 1
@@ -184,6 +190,9 @@ clean_planner_artifacts() {
             ;;
         ff|ff-x|metric-ff|conformant-ff|contingent-ff|probabilistic-ff)
             rm -f ff >/dev/null 2>&1 || true
+            ;;
+        val)
+            rm -rf build >/dev/null 2>&1 || true
             ;;
     esac
 
@@ -383,6 +392,10 @@ configure_submodule_ignores() {
     # Planner-specific generated outputs not covered by common patterns.
     add_submodule_exclude "planners/enhsp" "enhsp-dist/"
     add_submodule_exclude "planners/enhsp" "*.jar"
+
+    # VAL-specific generated outputs (CMake build artifacts).
+    add_submodule_exclude "VAL" "build/"
+    add_submodule_exclude "VAL" "bin/"
 
     if [[ $configured -gt 0 ]]; then
         log_success "Configured $configured new local submodule ignore rule(s) across all submodules"
@@ -656,6 +669,16 @@ build_lpg() {
     return 1
 }
 
+# Build VAL (KCL-Planning plan validation tool).
+# VAL is a CMake project that produces several executables under build/bin/,
+# most importantly:
+#   - VAL/build/bin/Validate : plan validation (used by run_planner.py --validate)
+#   - VAL/build/bin/Parser   : PDDL parser / syntax checker
+# Standard build: mkdir -p build && cd build && cmake .. && make
+build_val() {
+    build_planner "VAL" "VAL" "mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j"
+}
+
 # Generate final report
 generate_report() {
     log_info "Build Summary:"
@@ -745,6 +768,9 @@ main() {
     fi
 
     is_selected_planner "lpg" && build_lpg || true
+
+    # Build VAL plan validation tool (optional companion to the planners)
+    is_selected_planner "val" && build_val || true
 
     # Generate final report
     generate_report

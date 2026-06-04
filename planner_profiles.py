@@ -1,8 +1,8 @@
 """
-Planner Configurations Manager
+Planner Profiles Manager
 
-Loads and manages planner execution configurations from YAML specification file.
-Provides methods to query planner capabilities, configurations, and run commands.
+Loads and manages planner execution profiles from YAML specification file.
+Provides methods to query planner capabilities, profiles, and run commands.
 """
 
 import yaml
@@ -10,21 +10,21 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 
-class PlannerConfigurations:
-    """Manages planner execution configurations from YAML file."""
+class PlannerProfiles:
+    """Manages planner execution profiles from YAML file."""
     
     def __init__(self, spec_file: str = None):
         """
         Initialize specification loader.
         
         Args:
-            spec_file: Path to planner_configurations.yaml specification file.
-                      If None, looks for planner_configurations.yaml in repo root.
+            spec_file: Path to planner_profiles.yaml specification file.
+                      If None, looks for planner_profiles.yaml in repo root.
         """
         if spec_file is None:
-            # Look for planner_configurations.yaml in repo root
+            # Look for planner_profiles.yaml in repo root
             repo_root = Path(__file__).parent
-            spec_file = repo_root / "planner_configurations.yaml"
+            spec_file = repo_root / "planner_profiles.yaml"
         
         self.spec_file = Path(spec_file)
         self.spec = {}
@@ -75,62 +75,62 @@ class PlannerConfigurations:
         """Get PDDL requirements for a planner."""
         return self.get_planner_info(planner_name).get("requires", [])
     
-    def get_configurations(self, planner_name: str) -> Dict[str, Dict]:
-        """Get all configurations for a planner."""
+    def get_profiles(self, planner_name: str) -> Dict[str, Dict]:
+        """Get all profiles for a planner."""
         if not self.has_planner(planner_name):
             raise ValueError(f"Planner not found: {planner_name}")
-        return self.spec["planners"][planner_name].get("configurations", {})
+        return self.spec["planners"][planner_name].get("profiles", {})
     
-    def get_default_config(self, planner_name: str) -> str:
-        """Get default configuration name for a planner."""
-        configs = self.get_configurations(planner_name)
-        if "default" in configs:
+    def get_default_profile(self, planner_name: str) -> str:
+        """Get default profile name for a planner."""
+        profiles = self.get_profiles(planner_name)
+        if "default" in profiles:
             return "default"
-        # Return first config
-        if configs:
-            return list(configs.keys())[0]
+        # Return first profile
+        if profiles:
+            return list(profiles.keys())[0]
         return None
     
-    def get_config_info(self, planner_name: str, config_name: str) -> Dict[str, Any]:
-        """Get information for a specific configuration."""
-        configs = self.get_configurations(planner_name)
-        if config_name not in configs:
+    def get_profile_info(self, planner_name: str, profile_name: str) -> Dict[str, Any]:
+        """Get information for a specific profile."""
+        profiles = self.get_profiles(planner_name)
+        if profile_name not in profiles:
             raise ValueError(
-                f"Configuration '{config_name}' not found for planner '{planner_name}'. "
-                f"Available: {', '.join(configs.keys())}"
+                f"Profile '{profile_name}' not found for planner '{planner_name}'. "
+                f"Available: {', '.join(profiles.keys())}"
             )
-        return configs[config_name]
+        return profiles[profile_name]
     
-    def get_config_description(self, planner_name: str, config_name: str) -> str:
-        """Get description of a configuration."""
-        return self.get_config_info(planner_name, config_name).get("description", "")
+    def get_profile_description(self, planner_name: str, profile_name: str) -> str:
+        """Get description of a profile."""
+        return self.get_profile_info(planner_name, profile_name).get("description", "")
     
-    def get_search_command(self, planner_name: str, config_name: str) -> Optional[str]:
-        """Get search command for a configuration (if applicable)."""
-        config = self.get_config_info(planner_name, config_name)
-        return config.get("search")
+    def get_search_command(self, planner_name: str, profile_name: str) -> Optional[str]:
+        """Get search command for a profile (if applicable)."""
+        profile = self.get_profile_info(planner_name, profile_name)
+        return profile.get("search")
     
-    def get_config_args(self, planner_name: str, config_name: str) -> List[str]:
-        """Get command-line arguments for a configuration."""
-        config = self.get_config_info(planner_name, config_name)
-        return config.get("args", [])
+    def get_profile_args(self, planner_name: str, profile_name: str) -> List[str]:
+        """Get command-line arguments for a profile."""
+        profile = self.get_profile_info(planner_name, profile_name)
+        return profile.get("args", [])
 
-    def get_config_executable(self, planner_name: str, config_name: str) -> Optional[str]:
-        """Get executable override for a configuration, if any."""
-        config = self.get_config_info(planner_name, config_name)
-        return config.get("executable")
+    def get_profile_executable(self, planner_name: str, profile_name: str) -> Optional[str]:
+        """Get executable override for a profile, if any."""
+        profile = self.get_profile_info(planner_name, profile_name)
+        return profile.get("executable")
     
-    def list_configurations(self, planner_name: str) -> None:
-        """Print all available configurations for a planner."""
+    def list_profiles(self, planner_name: str) -> None:
+        """Print all available profiles for a planner."""
         if not self.has_planner(planner_name):
             raise ValueError(f"Planner not found: {planner_name}")
         
-        configs = self.get_configurations(planner_name)
-        print(f"\n{planner_name} - Available Configurations:\n")
+        profiles = self.get_profiles(planner_name)
+        print(f"\n{planner_name} - Available Profiles:\n")
         
-        for config_name, config_info in configs.items():
-            desc = config_info.get("description", "")
-            print(f"  {config_name:25} {desc}")
+        for profile_name, profile_info in profiles.items():
+            desc = profile_info.get("description", "")
+            print(f"  {profile_name:25} {desc}")
         
         print()
     

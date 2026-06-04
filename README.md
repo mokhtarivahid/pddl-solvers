@@ -58,7 +58,7 @@ sudo apt update
 sudo apt install -y build-essential cmake git autoconf automake libtool
 
 # Parser generators and development tools
-sudo apt install -y flex bison pkg-config
+sudo apt install -y flex bison pkg-profile
 
 # Python development (ensure both python3 and python symlink)
 sudo apt install -y python3 python3-pip python3-dev
@@ -94,7 +94,7 @@ python3 --version  # Should be 3.8+
 java -version      # Should be 11+
 
 # Check scientific libraries
-pkg-config --modversion gsl  # Should be present
+pkg-profile --modversion gsl  # Should be present
 ```
 
 ## Build Instructions
@@ -141,6 +141,42 @@ The build script will:
 - Generate comprehensive build report
 
 **Note:** planner repositories under `planners/` are external git submodules with their own history. When `./build_all.sh` runs, it now applies a common local ignore baseline (object files, build directories, CMake/autotools outputs, logs, caches, etc.) to all configured submodules via each submodule's `info/exclude`, plus planner-specific patterns where needed (for example ENHSP `enhsp-dist/` and JAR files). This keeps `git status` and VS Code Source Control clean across cloned environments without modifying upstream submodule history.
+
+### Plan Validation (VAL)
+
+KCL-Planning's [VAL](https://github.com/KCL-Planning/VAL) is included as a Git submodule at `VAL/` and is built by `./build_all.sh` (target name `val`). The build produces `VAL/build/bin/Validate` (plan validator) and `VAL/build/bin/Parser` (PDDL syntax checker).
+
+```bash
+# Build only VAL (one-time, ~30s)
+./build_all.sh --planner val
+
+# Clean and rebuild VAL
+./build_all.sh --clean --planner val
+```
+
+Validate a plan produced by any planner by passing `--validate` (`-V`) to `run_planner.py`:
+
+```bash
+# Run a planner and validate its plan
+python3 run_planner.py domain.pddl problem.pddl -p downward --validate
+
+# Temporal plans (epsilon auto-set; override with --val-epsilon)
+python3 run_planner.py domain.pddl problem.pddl -p optic --validate --val-epsilon 0.001
+
+# Verbose VAL report and JSON output
+python3 run_planner.py domain.pddl problem.pddl -p ff --validate --val-verbose
+python3 run_planner.py domain.pddl problem.pddl -p ff --validate -f json
+```
+
+When `--validate` is set the runner writes the produced plan to a temporary file and invokes:
+
+```
+VAL/build/bin/Validate [-v] [-t <epsilon>] <domain> <problem> <plan>
+```
+
+It then appends a `VAL Plan Validation` section to the report (`VALID` / `INVALID` / `UNKNOWN`) and, in JSON mode, includes a `validation` object with exit code, runtime, stdout, stderr, and the invoked command. VAL is optional: if it is not built, `--validate` reports `SKIPPED` with a hint to build it.
+
+The `VAL/` submodule is configured with `ignore = dirty` and its build outputs (`build/`, `bin/`) are added to its local `info/exclude` by `build_all.sh`, so VAL never appears as a dirty submodule in `git status`.
 
 ### Option 2: Manual Build
 
@@ -206,10 +242,10 @@ The build script will:
               -p ff
    
    # Run Fast Downward with A* + LM-cut
-  ./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
+  ./run_planner.py domain.pddl problem.pddl -p downward --profile optimal-lmcut
    
-   # Show available configurations for a planner
-   ./run_planner.py --list-configs symk
+   # Show available profiles for a planner
+   ./run_planner.py --list-profiles symk
    ```
 
 ## Unified Planner Interface (`run_planner.py`)
@@ -219,26 +255,26 @@ The repository includes `run_planner.py` - a unified Python script that provides
 ### Design Philosophy
 
 - **Beginner-Friendly**: Simple commands for common use cases (`./run_planner.py domain.pddl problem.pddl`)
-- **Expert-Friendly**: Full access to all planner parameters via pass-through arguments and configuration files
+- **Expert-Friendly**: Full access to all planner parameters via pass-through arguments and profile files
 - **Transparent Output**: Direct planner output to terminal by default (no forced processing)
-- **Configuration-Driven**: `planner_configurations.yaml` documents planner execution configurations
-- **Flexible**: Predefined configurations for common scenarios + custom parameter support
+- **Profile-Driven**: `planner_profiles.yaml` documents planner execution profiles
+- **Flexible**: Predefined profiles for common scenarios + custom parameter support
 
 ### Planner Specifications
 
-Planner execution options are documented in `planner_configurations.yaml`:
+Planner execution options are documented in `planner_profiles.yaml`:
 ```yaml
 planners:
   symk:
     description: "SymK - Symbolic optimal and top-k planner"
-    configurations:
+    profiles:
       optimal-bd:
         description: "Single optimal, bidirectional search"
         search: "sym_bd()"
       topk-5:
         description: "Top 5 best plans"
         search: "symk_bd(plan_selection=top_k(num_plans=5))"
-      # ... more configurations
+      # ... more profiles
     parameters:
       --plan-file: "Output file for plans"
       # ... more parameters documented
@@ -249,9 +285,9 @@ View the full specification:
 # List all planners with descriptions
 ./run_planner.py --list-planners
 
-# Show all configurations for a specific planner
-./run_planner.py --list-configs symk
-./run_planner.py --list-configs downward
+# Show all profiles for a specific planner
+./run_planner.py --list-profiles symk
+./run_planner.py --list-profiles downward
 ```
 
 ### Basic Usage
@@ -260,8 +296,8 @@ View the full specification:
 # Simplest form - uses defaults
 ./run_planner.py <domain.pddl> <problem.pddl>
 
-# Specify planner and configuration
-./run_planner.py <domain.pddl> <problem.pddl> -p <name> --config <config>
+# Specify planner and profile
+./run_planner.py <domain.pddl> <problem.pddl> -p <name> --profile <profile>
 
 # Auto-select best planner for domain
 ./run_planner.py <domain.pddl> <problem.pddl> --auto-planner
@@ -291,35 +327,35 @@ View the full specification:
 
 ### Key Features
 
-#### 1. **Predefined Configurations** (Recommended for Most Users)
+#### 1. **Predefined Profiles** (Recommended for Most Users)
 
-Each planner has carefully defined configurations accessible via `--config`:
+Each planner has carefully defined profiles accessible via `--profile`:
 
 ```bash
 # Fast Downward - optimal planning
-./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
+./run_planner.py domain.pddl problem.pddl -p downward --profile optimal-lmcut
 
 # SymK - top-k planning (find 5 diverse best plans)
-./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
+./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5
 
 # SymK - top-q planning (plans within 1.5x optimal cost)
-./run_planner.py domain.pddl problem.pddl -p symk --config topq-3-q1.5
+./run_planner.py domain.pddl problem.pddl -p symk --profile topq-3-q1.5
 
 # SymK - loopless planning (no state revisit)
-./run_planner.py domain.pddl problem.pddl -p symk --config loopless-3
+./run_planner.py domain.pddl problem.pddl -p symk --profile loopless-3
 
 # OPTIC - first solution (stop after first plan found)
-./run_planner.py domain.pddl problem.pddl -p optic --config first-solution
+./run_planner.py domain.pddl problem.pddl -p optic --profile first-solution
 
 # ENHSP - numeric optimal planning
-./run_planner.py domain.pddl problem.pddl -p enhsp --config optimal-hrmax
+./run_planner.py domain.pddl problem.pddl -p enhsp --profile optimal-hrmax
 ```
 
-List all available configurations for a planner:
+List all available profiles for a planner:
 ```bash
-./run_planner.py --list-configs symk
-./run_planner.py --list-configs downward
-./run_planner.py --list-configs enhsp
+./run_planner.py --list-profiles symk
+./run_planner.py --list-profiles downward
+./run_planner.py --list-profiles enhsp
 ```
 
 #### 2. **Pass-Through Arguments** (For Advanced Users)
@@ -336,7 +372,7 @@ Send planner-specific parameters directly by using `--` separator:
 # SymK: specify output file
 ./run_planner.py domain.pddl problem.pddl -p symk -- --plan-file plans.out
 
-# SymK: custom search command (overrides --config)
+# SymK: custom search command (overrides --profile)
 ./run_planner.py domain.pddl problem.pddl -p symk -- \
   --search "symk_bw(simple=true, plan_selection=top_k(num_plans=3))"
 ```
@@ -358,7 +394,7 @@ By default, planner output goes directly to terminal (passthrough mode):
 ./run_planner.py domain.pddl problem.pddl -p downward --output-format json
 
 # Multi-plan compact output (e.g. SymK top-k)
-./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --output-format compact
+./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5 --output-format compact
 
 # Save full results to file (JSON)
 ./run_planner.py domain.pddl problem.pddl -p downward -o results.json
@@ -405,7 +441,7 @@ Show the exact planner command without running it:
 
 ```bash
 # Dry-run prints the exact subprocess command and working directory
-./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --dry-run
+./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5 --dry-run
 ```
 
 #### 5. **Domain Analysis & Auto-Selection**
@@ -447,10 +483,10 @@ Catalog examples:
 ./run_planner.py domain.pddl problem.pddl -p ff
 
 # Fast Downward - modern optimal planning
-./run_planner.py domain.pddl problem.pddl -p downward --config optimal-lmcut
+./run_planner.py domain.pddl problem.pddl -p downward --profile optimal-lmcut
 
 # Fast Downward - satisficing (faster)
-./run_planner.py domain.pddl problem.pddl -p downward --config satisficing-ff
+./run_planner.py domain.pddl problem.pddl -p downward --profile satisficing-ff
 ```
 
 #### Optimal & Top-K Planning (SymK)
@@ -459,16 +495,16 @@ Catalog examples:
 ./run_planner.py domain.pddl problem.pddl -p symk
 
 # Top 5 diverse best plans
-./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
+./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5
 
 # Top 5 diverse best plans with extracted compact output
-./run_planner.py domain.pddl problem.pddl -p symk --config topk-5 --output-format compact
+./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5 --output-format compact
 
 # Top 3 plans within 1.5x optimal cost
-./run_planner.py domain.pddl problem.pddl -p symk --config topq-3-q1.5
+./run_planner.py domain.pddl problem.pddl -p symk --profile topq-3-q1.5
 
 # Top 3 loopless plans (no state revisit)
-./run_planner.py domain.pddl problem.pddl -p symk --config loopless-3
+./run_planner.py domain.pddl problem.pddl -p symk --profile loopless-3
 
 # Backward search instead of bidirectional
 ./run_planner.py domain.pddl problem.pddl -p symk -- --search "sym_bw()"
@@ -484,7 +520,7 @@ Catalog examples:
 ./run_planner.py domain.pddl problem.pddl -p optic
 
 # OPTIC - first feasible solution (faster)
-./run_planner.py domain.pddl problem.pddl -p optic --config first-solution
+./run_planner.py domain.pddl problem.pddl -p optic --profile first-solution
 
 # POPF - satisficing temporal planning (widely used in ROS)
 ./run_planner.py domain.pddl problem.pddl -p popf
@@ -496,10 +532,10 @@ Catalog examples:
 #### Numeric Planning
 ```bash
 # ENHSP - numeric satisficing
-./run_planner.py domain.pddl problem.pddl -p enhsp --config satisficing-hmrp
+./run_planner.py domain.pddl problem.pddl -p enhsp --profile satisficing-hmrp
 
 # ENHSP - numeric optimal
-./run_planner.py domain.pddl problem.pddl -p enhsp --config optimal-hrmax
+./run_planner.py domain.pddl problem.pddl -p enhsp --profile optimal-hrmax
 
 # Metric-FF - numeric STRIPS planning
 ./run_planner.py domain.pddl problem.pddl -p metric-ff
@@ -533,9 +569,9 @@ PLANNER SELECTION (optional, uses auto-select if not provided):
   -O, --prefer-optimal        Prefer optimal planners (default for auto-select)
   -F, --prefer-fast           Prefer satisficing planners for auto-select
 
-CONFIGURATION (optional, uses planner default if not provided):
-  -c, --config NAME           Predefined configuration (e.g., optimal-bd, topk-5)
-  -L, --list-configs PLANNER  Show all configs for a planner
+PROFILE (optional, uses planner default if not provided):
+  -c, --profile NAME           Predefined profile (e.g., optimal-bd, topk-5)
+  -L, --list-profiles PLANNER  Show all profiles for a planner
 
 PLANNER-SPECIFIC ARGUMENTS:
   -- ARGS                     Pass arguments directly to the planner
@@ -564,8 +600,8 @@ EXAMPLES:
   # Short-form aliases for common options
   ./run_planner.py domain.pddl problem.pddl -p symk -c topk-5 -t 120
 
-  # With specific configuration
-  ./run_planner.py domain.pddl problem.pddl -p symk --config topk-5
+  # With specific profile
+  ./run_planner.py domain.pddl problem.pddl -p symk --profile topk-5
 
   # With planner-specific arguments
   ./run_planner.py domain.pddl problem.pddl -p optic -- -b
@@ -578,7 +614,7 @@ EXAMPLES:
 
 By default, `run_planner.py` prints the planner's raw output directly to your terminal, along with a header showing:
 - Domain and problem files used
-- Selected planner and configuration
+- Selected planner and profile
 - Timeout value
 - Auto-selection information (if applicable)
 - Any pass-through arguments
@@ -597,7 +633,7 @@ PDDL Planner Execution
 Domain file:       gripper.pddl
 Problem file:      p01.pddl
 Planner:           symk
-Configuration:     topk-5
+Profile:     topk-5
                    (Top 5 best plans, bidirectional)
 Timeout:           300 seconds
 ======================================================================
@@ -605,14 +641,14 @@ Timeout:           300 seconds
 
 ### Advanced Usage
 
-#### Adding Custom Configurations
+#### Adding Custom Profiles
 
-Edit `planner_configurations.yaml` to add new configurations:
+Edit `planner_profiles.yaml` to add new profiles:
 
 ```yaml
 planners:
   symk:
-    configurations:
+    profiles:
       my-custom:
         description: "My custom search strategy"
         search: "symq_bd(plan_selection=top_k(num_plans=10), quality=3.0)"
@@ -620,7 +656,7 @@ planners:
 
 Then use it:
 ```bash
-./run_planner.py domain.pddl problem.pddl -p symk --config my-custom
+./run_planner.py domain.pddl problem.pddl -p symk --profile my-custom
 ```
 
 #### Batch Testing
@@ -712,7 +748,7 @@ Test results include:
 
 2. **TFD: Requires `solutionFile` argument when called directly**
    ```
-   TFD native usage: downward/tfd <domainFile> <problemFile> <solutionFile> [config]
+   TFD native usage: downward/tfd <domainFile> <problemFile> <solutionFile> [profile]
   Repository behavior: `run_planner.py -p tfd` passes a temp solution file automatically
    Plan extraction: when TFD emits multiple plan files (.1, .2, ...), the latest numeric file is selected
    ```
@@ -826,8 +862,8 @@ cd benchmarks/ipc-domains/ipc-2000/domains/logistics
 cd planners/tfd/benchmarks/elevators-strips
 ../../../run_planner.py domain.pddl p01.pddl -p tfd
 
-# Optional: pass native TFD config string (solution path is still internal)
-../../../run_planner.py domain.pddl p01.pddl -p tfd --config "y+Y+a+e+r+O+1+C+1+b"
+# Optional: pass native TFD profile string (solution path is still internal)
+../../../run_planner.py domain.pddl p01.pddl -p tfd --profile "y+Y+a+e+r+O+1+C+1+b"
 ```
 
 ## Usage

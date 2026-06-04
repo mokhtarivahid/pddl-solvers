@@ -26,9 +26,9 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Import the PDDL analyzer and planner configurations
+# Import the PDDL analyzer and planner profiles
 from pddl_analyzer import PDDLAnalyzer, PDDLRequirementsParser, PlannerCapabilityDatabase
-from planner_configurations import PlannerConfigurations
+from planner_profiles import PlannerProfiles
 
 
 class PlannerRunner:
@@ -43,18 +43,18 @@ class PlannerRunner:
         # Initialize PDDL analyzer
         self.analyzer = PDDLAnalyzer(str(self.repo_root))
         
-        # Load planner execution configurations
+        # Load planner execution profiles
         if spec_file is None:
-            spec_file = self.repo_root / "planner_configurations.yaml"
+            spec_file = self.repo_root / "planner_profiles.yaml"
         try:
-            self.spec = PlannerConfigurations(str(spec_file))
+            self.spec = PlannerProfiles(str(spec_file))
         except Exception as e:
             print(f"Warning: Could not load planner specification: {e}", file=sys.stderr)
             self.spec = None
         
-        # Legacy configurations (fallback if spec not available)
-        # Fast Downward search configurations
-        self.fd_configs = {
+        # Legacy profiles (fallback if spec not available)
+        # Fast Downward search profiles
+        self.fd_profiles = {
             "optimal-lmcut": "astar(lmcut())",
             "optimal-ff": "astar(ff())",
             "satisficing-ff": "lazy_greedy([ff()], preferred=[ff()])",
@@ -67,8 +67,8 @@ class PlannerRunner:
             "gbfs-ff": "lazy_greedy([ff()], preferred=[ff()])"
         }
         
-        # ENHSP search configurations
-        self.enhsp_configs = {
+        # ENHSP search profiles
+        self.enhsp_profiles = {
             "sat-hmrp": "sat-hmrp", 
             "opt-hrmax": "opt-hrmax",
             "gbfs-hadd": "gbfs -h hadd",
@@ -90,7 +90,7 @@ class PlannerRunner:
             self.temp_dir = None
     
     def print_execution_header(self, domain_file: Path, problem_file: Path, 
-                               planner: str, config: Optional[str], timeout: int,
+                               planner: str, profile: Optional[str], timeout: int,
                                auto_selected: bool = False, 
                                extra_args: Optional[List[str]] = None) -> None:
         """Print header information before planner execution."""
@@ -100,17 +100,17 @@ class PlannerRunner:
         print(f"Domain file:       {domain_file.name}")
         print(f"Problem file:      {problem_file.name}")
         print(f"Planner:           {planner}")
-        if config:
+        if profile:
             if self.spec and self.spec.has_planner(planner):
-                print(f"Configuration:     {config}")
+                print(f"Profile:           {profile}")
                 try:
-                    desc = self.spec.get_config_description(planner, config)
+                    desc = self.spec.get_profile_description(planner, profile)
                     if desc:
                         print(f"                   ({desc})")
                 except ValueError:
                     pass
             else:
-                print(f"Configuration:     {config}")
+                print(f"Profile:           {profile}")
         if auto_selected:
             print(f"Selection mode:    Auto-selected based on domain requirements")
         print(f"Timeout:           {timeout} seconds")
@@ -266,7 +266,7 @@ class PlannerRunner:
     def _build_timeout_response(
         self,
         planner: str,
-        config: str,
+        profile: str,
         timeout: int,
         start_time: float,
         exc: subprocess.TimeoutExpired,
@@ -292,7 +292,7 @@ class PlannerRunner:
 
         return {
             "planner": planner,
-            "config": config,
+            "profile": profile,
             "success": bool(plan_content.strip()),
             "runtime": runtime,
             "plan": plan_content,
@@ -508,12 +508,12 @@ class PlannerRunner:
         )
         return result
 
-    def resolve_config(self, planner: str, config: Optional[str]) -> str:
-        """Resolve the effective configuration for a planner."""
-        if config is not None:
-            return config
+    def resolve_profile(self, planner: str, profile: Optional[str]) -> str:
+        """Resolve the effective profile for a planner."""
+        if profile is not None:
+            return profile
         if self.spec and self.spec.has_planner(planner):
-            return self.spec.get_default_config(planner)
+            return self.spec.get_default_profile(planner)
         if planner == "downward":
             return "optimal-lmcut"
         if planner == "enhsp":
@@ -526,30 +526,30 @@ class PlannerRunner:
             return False
         return any(arg in options for arg in extra_args)
 
-    def _get_spec_search(self, planner: str, config: str) -> Optional[str]:
+    def _get_spec_search(self, planner: str, profile: str) -> Optional[str]:
         """Get search string from specification when available."""
         if not self.spec or not self.spec.has_planner(planner):
             return None
         try:
-            return self.spec.get_search_command(planner, config)
+            return self.spec.get_search_command(planner, profile)
         except ValueError:
             return None
 
-    def _get_spec_args(self, planner: str, config: str) -> List[str]:
-        """Get configuration arguments from specification when available."""
+    def _get_spec_args(self, planner: str, profile: str) -> List[str]:
+        """Get profile arguments from specification when available."""
         if not self.spec or not self.spec.has_planner(planner):
             return []
         try:
-            return self.spec.get_config_args(planner, config)
+            return self.spec.get_profile_args(planner, profile)
         except ValueError:
             return []
 
-    def _get_spec_executable(self, planner: str, config: str) -> Optional[str]:
+    def _get_spec_executable(self, planner: str, profile: str) -> Optional[str]:
         """Get executable override from specification when available."""
         if not self.spec or not self.spec.has_planner(planner):
             return None
         try:
-            return self.spec.get_config_executable(planner, config)
+            return self.spec.get_profile_executable(planner, profile)
         except ValueError:
             return None
 
@@ -570,10 +570,10 @@ class PlannerRunner:
         return enhsp_domain, enhsp_problem
 
     def prepare_planner_command(self, planner: str, domain_file: Path, problem_file: Path,
-                                config: Optional[str] = None, timeout: int = 300,
+                                profile: Optional[str] = None, timeout: int = 300,
                                 extra_args: Optional[List[str]] = None) -> Dict:
         """Prepare command metadata for execution or dry-run preview."""
-        resolved_config = self.resolve_config(planner, config)
+        resolved_profile = self.resolve_profile(planner, profile)
 
         if planner == "downward":
             downward_dir = self.planners_dir / "downward"
@@ -581,16 +581,16 @@ class PlannerRunner:
             if not downward_script.exists():
                 raise FileNotFoundError(f"Fast Downward not found at {downward_script}")
 
-            search_config = self._get_spec_search("downward", resolved_config) or self.fd_configs.get(resolved_config, resolved_config)
+            search_profile = self._get_spec_search("downward", resolved_profile) or self.fd_profiles.get(resolved_profile, resolved_profile)
             cmd = [str(downward_script), str(domain_file), str(problem_file)]
             if not self._has_passthrough_option(extra_args, "--search", "--alias"):
-                if resolved_config in ["seq-sat-lama", "seq-opt-lama"]:
-                    cmd.extend(["--alias", search_config])
+                if resolved_profile in ["seq-sat-lama", "seq-opt-lama"]:
+                    cmd.extend(["--alias", search_profile])
                 else:
-                    cmd.extend(["--search", search_config])
+                    cmd.extend(["--search", search_profile])
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(downward_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(downward_dir)}
 
         if planner == "enhsp":
             enhsp_dir = self.planners_dir / "enhsp"
@@ -601,17 +601,17 @@ class PlannerRunner:
             enhsp_domain, enhsp_problem = self._prepare_enhsp_inputs(domain_file, problem_file)
 
             cmd = ["java", "-jar", str(enhsp_jar), "-o", str(enhsp_domain), "-f", str(enhsp_problem), "-timeout", str(timeout)]
-            search_config = self._get_spec_search("enhsp", resolved_config) or self.enhsp_configs.get(resolved_config)
-            if search_config:
-                if search_config in ["sat-hmrp", "opt-hrmax"]:
-                    cmd.extend(["-planner", search_config])
+            search_profile = self._get_spec_search("enhsp", resolved_profile) or self.enhsp_profiles.get(resolved_profile)
+            if search_profile:
+                if search_profile in ["sat-hmrp", "opt-hrmax"]:
+                    cmd.extend(["-planner", search_profile])
                 else:
-                    cmd.extend(search_config.split())
+                    cmd.extend(search_profile.split())
             plan_file = self.setup_temp_dir() / "enhsp_plan.txt"
             cmd.extend(["-sp", str(plan_file)])
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(enhsp_dir), "plan_file": plan_file}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(enhsp_dir), "plan_file": plan_file}
 
         if planner == "ff":
             ff_dir = self.planners_dir / "ff"
@@ -624,7 +624,7 @@ class PlannerRunner:
             cmd = [str(ff_executable), "-p", str(temp_dir) + "/", "-o", "domain.pddl", "-f", "problem.pddl"]
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(temp_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(temp_dir)}
 
         if planner in ["ff-x", "metric-ff", "conformant-ff", "contingent-ff", "probabilistic-ff"]:
             planner_dir = self.planners_dir / planner
@@ -645,11 +645,11 @@ class PlannerRunner:
             cmd = [str(executable), "-p", str(temp_dir) + "/", "-o", "domain.pddl", "-f", "problem.pddl"]
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(temp_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(temp_dir)}
 
         if planner == "lpg":
             lpg_dir = self.planners_dir / "lpg"
-            lpg_exe_name = self._get_spec_executable("lpg", resolved_config) or "lpg"
+            lpg_exe_name = self._get_spec_executable("lpg", resolved_profile) or "lpg"
             lpg_exe = lpg_dir / lpg_exe_name
             if not lpg_exe.exists():
                 raise FileNotFoundError(f"LPG executable not found at {lpg_exe}")
@@ -658,33 +658,33 @@ class PlannerRunner:
             shutil.copy2(problem_file, temp_dir / "problem.pddl")
             cmd = [str(lpg_exe), "-o", "domain.pddl", "-f", "problem.pddl",
                    "-out", "plan.sol"]
-            # Add mode flags from spec or config name
-            spec_args = self._get_spec_args("lpg", resolved_config)
+            # Add mode flags from spec or profile name
+            spec_args = self._get_spec_args("lpg", resolved_profile)
             if spec_args:
                 cmd.extend(spec_args)
-            elif resolved_config == "speed":
+            elif resolved_profile == "speed":
                 cmd.extend(["-speed"])
-            elif resolved_config == "quality":
+            elif resolved_profile == "quality":
                 cmd.extend(["-quality"])
             else:
                 cmd.extend(["-n", "1"])
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(temp_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(temp_dir)}
 
         if planner == "madagascar":
             madagascar_dir = self.planners_dir / "madagascar"
-            madagascar_exe_name = self._get_spec_executable("madagascar", resolved_config) or "Mp"
+            madagascar_exe_name = self._get_spec_executable("madagascar", resolved_profile) or "Mp"
             madagascar_exe = madagascar_dir / madagascar_exe_name
             if not madagascar_exe.exists():
                 raise FileNotFoundError(f"MADAGASCAR executable not found at {madagascar_exe}")
             cmd = [str(madagascar_exe), str(domain_file), str(problem_file)]
-            spec_args = self._get_spec_args("madagascar", resolved_config)
+            spec_args = self._get_spec_args("madagascar", resolved_profile)
             if spec_args:
                 cmd.extend(spec_args)
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(madagascar_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(madagascar_dir)}
 
         if planner == "vhpop":
             vhpop_dir = self.planners_dir / "vhpop"
@@ -696,7 +696,7 @@ class PlannerRunner:
             cmd = [str(vhpop_exe), str(domain_file), str(problem_file)]
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(vhpop_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(vhpop_dir)}
 
         if planner == "tfd":
             tfd_dir = self.planners_dir / "tfd"
@@ -709,14 +709,14 @@ class PlannerRunner:
             # option string like "y+Y+a+e+r+O+1+C+1+b" (split on '+' internally).
             # When omitted, the wrapper applies its built-in default that enables
             # anytime search ('a'), causing the planner to keep looking for
-            # improved plans until killed. We forward configuration strings from
-            # planner_configurations.yaml so non-anytime behavior is the default.
-            spec_args = self._get_spec_args("tfd", resolved_config)
+            # improved plans until killed. We forward profile strings from
+            # planner_profiles.yaml so non-anytime behavior is the default.
+            spec_args = self._get_spec_args("tfd", resolved_profile)
             if spec_args:
                 cmd.extend(spec_args)
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(tfd_dir), "solution_file": solution_file}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(tfd_dir), "solution_file": solution_file}
 
         if planner == "optic":
             optic_dir = self.planners_dir / "optic"
@@ -724,11 +724,11 @@ class PlannerRunner:
             if not optic_exe.exists():
                 raise FileNotFoundError(f"OPTIC executable not found at {optic_exe}")
             cmd = [str(optic_exe)]
-            cmd.extend(self._get_spec_args("optic", resolved_config))
+            cmd.extend(self._get_spec_args("optic", resolved_profile))
             if extra_args:
                 cmd.extend(extra_args)
             cmd.extend([str(domain_file), str(problem_file)])
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(optic_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(optic_dir)}
 
         if planner == "popf":
             popf_dir = self.planners_dir / "popf"
@@ -737,7 +737,7 @@ class PlannerRunner:
             if not popf_exe.exists():
                 raise FileNotFoundError(f"POPF executable not found at {popf_exe}")
             cmd = [str(popf_exe)]
-            cmd.extend(self._get_spec_args("popf", resolved_config))
+            cmd.extend(self._get_spec_args("popf", resolved_profile))
             if extra_args:
                 cmd.extend(extra_args)
             cmd.extend([str(domain_file), str(problem_file)])
@@ -745,7 +745,7 @@ class PlannerRunner:
             local_lib_paths = [str(popf_build_dir), str(popf_dir)]
             existing_ld_path = env.get("LD_LIBRARY_PATH", "")
             env["LD_LIBRARY_PATH"] = ":".join(local_lib_paths + ([existing_ld_path] if existing_ld_path else []))
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(popf_build_dir), "env": env}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(popf_build_dir), "env": env}
 
         if planner == "powerlifted":
             powerlifted_dir = self.planners_dir / "powerlifted"
@@ -753,11 +753,11 @@ class PlannerRunner:
             if not powerlifted_exe.exists():
                 raise FileNotFoundError(f"POWERLIFTED executable not found at {powerlifted_exe}")
             cmd = ["python3", str(powerlifted_exe), "-d", str(domain_file), "-i", str(problem_file)]
-            if resolved_config == "bfws1":
+            if resolved_profile == "bfws1":
                 cmd.extend(["-s", "bfws1"])
-            elif resolved_config == "bfws2":
+            elif resolved_profile == "bfws2":
                 cmd.extend(["-s", "bfws2"])
-            elif resolved_config == "astar":
+            elif resolved_profile == "astar":
                 cmd.extend(["-s", "astar"])
             else:
                 cmd.extend(["-s", "bfws1"])
@@ -766,7 +766,7 @@ class PlannerRunner:
                 cmd.extend(["--plan-file", str(plan_file)])
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(powerlifted_dir), "plan_file": plan_file}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(powerlifted_dir), "plan_file": plan_file}
 
         if planner == "symk":
             symk_dir = self.planners_dir / "symk"
@@ -786,13 +786,13 @@ class PlannerRunner:
                 "loopless-3": "symk_bd(simple=true, plan_selection=top_k(num_plans=3))",
                 "unordered-3": "symk_bd(plan_selection=unordered(num_plans=3))"
             }
-            search_config = self._get_spec_search("symk", resolved_config) or fallback_search.get(resolved_config, fallback_search["default"])
+            search_profile = self._get_spec_search("symk", resolved_profile) or fallback_search.get(resolved_profile, fallback_search["default"])
             cmd = ["python3", str(symk_exe), str(domain_file), str(problem_file)]
             if not self._has_passthrough_option(extra_args, "--search", "--alias"):
-                cmd.extend(["--search", search_config])
+                cmd.extend(["--search", search_profile])
             if extra_args:
                 cmd.extend(extra_args)
-            return {"config": resolved_config, "cmd": cmd, "cwd": str(symk_dir)}
+            return {"profile": resolved_profile, "cmd": cmd, "cwd": str(symk_dir)}
 
         planner_dir = self.planners_dir / planner
         executables = [planner, f"{planner}.jar", f"{planner}.py"]
@@ -813,7 +813,7 @@ class PlannerRunner:
         cmd.extend([str(domain_file), str(problem_file)])
         if extra_args:
             cmd.extend(extra_args)
-        return {"config": resolved_config, "cmd": cmd, "cwd": str(executable.parent)}
+        return {"profile": resolved_profile, "cmd": cmd, "cwd": str(executable.parent)}
     
     def get_available_planners(self) -> List[str]:
         """Get list of available planners."""
@@ -844,10 +844,10 @@ class PlannerRunner:
         return sorted(planners)
     
     def run_downward(self, domain_file: Path, problem_file: Path, 
-                    config: str = "optimal-lmcut", timeout: int = 300,
+                    profile: str = "optimal-lmcut", timeout: int = 300,
                     extra_args: Optional[List[str]] = None) -> Dict:
         """Run Fast Downward planner."""
-        bundle = self.prepare_planner_command("downward", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("downward", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         downward_dir = bundle["cwd"]
         sas_plan_file = Path(downward_dir) / "sas_plan"
@@ -874,7 +874,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "downward",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -890,15 +890,15 @@ class PlannerRunner:
                 with suppress(OSError):
                     sas_plan_file.unlink()
             timeout_result = self._build_timeout_response(
-                "downward", config, timeout, start_time, exc, self._selected_plan_text(plans)
+                "downward", profile, timeout, start_time, exc, self._selected_plan_text(plans)
             )
             return self._finalize_result_plans(timeout_result, plans)
     
     def run_enhsp(self, domain_file: Path, problem_file: Path, 
-                  config: str = "sat-hmrp", timeout: int = 300,
+                  profile: str = "sat-hmrp", timeout: int = 300,
                   extra_args: Optional[List[str]] = None) -> Dict:
         """Run ENHSP planner."""
-        bundle = self.prepare_planner_command("enhsp", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("enhsp", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         enhsp_dir = bundle["cwd"]
         plan_file = bundle["plan_file"]
@@ -922,7 +922,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "enhsp",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -938,15 +938,15 @@ class PlannerRunner:
                 partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
                 plans = self._plans_from_text_block("enhsp", self._extract_temporal_plan(partial_stdout), "stdout", is_partial=True)
             timeout_result = self._build_timeout_response(
-                "enhsp", config, timeout, start_time, exc, self._selected_plan_text(plans)
+                "enhsp", profile, timeout, start_time, exc, self._selected_plan_text(plans)
             )
             return self._finalize_result_plans(timeout_result, plans)
     
     def run_ff(self, domain_file: Path, problem_file: Path, 
-               config: str = "default", timeout: int = 300,
+               profile: str = "default", timeout: int = 300,
                extra_args: Optional[List[str]] = None) -> Dict:
         """Run FF planner."""
-        bundle = self.prepare_planner_command("ff", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("ff", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         temp_dir = bundle["cwd"]
         
@@ -967,7 +967,7 @@ class PlannerRunner:
             
             result_data = {
                 "planner": "ff", 
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -981,7 +981,7 @@ class PlannerRunner:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._extract_ff_plan(partial_stdout)
             timeout_result = self._build_timeout_response(
-                "ff", config, timeout, start_time, exc, plan_content
+                "ff", profile, timeout, start_time, exc, plan_content
             )
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("ff", plan_content, "stdout", is_partial=True))
     
@@ -1042,57 +1042,213 @@ class PlannerRunner:
 
         return '\n'.join(plan_lines)
     
+    # ------------------------------------------------------------------
+    # VAL plan validation
+    # ------------------------------------------------------------------
+    def get_val_executable(self, tool: str = "Validate") -> Optional[Path]:
+        """Return the path to a VAL executable if it has been built.
+
+        VAL is configured as a git submodule at ``<repo>/VAL`` and is built
+        by ``build_all.sh`` (``mkdir -p build && cmake .. && make``). The
+        compiled binaries live under ``VAL/build/bin/``. Common tools:
+        ``Validate`` (plan validation) and ``Parser`` (PDDL syntax check).
+        """
+        candidate = self.repo_root / "VAL" / "build" / "bin" / tool
+        return candidate if candidate.exists() and os.access(candidate, os.X_OK) else None
+
+    def validate_plan_with_val(
+        self,
+        domain_file: Path,
+        problem_file: Path,
+        plan_text: str,
+        timeout: int = 60,
+        epsilon: Optional[float] = None,
+        val_verbose: bool = False,
+    ) -> Dict[str, Any]:
+        """Validate a plan using KCL-Planning's VAL ``Validate`` tool.
+
+        Writes ``plan_text`` to a temporary file, invokes
+        ``VAL/build/bin/Validate [-v N] [-t EPS] <domain> <problem> <plan>``
+        and reports the structured outcome.
+
+        Returns a dict with keys: ``available`` (bool), ``valid`` (Optional[bool]),
+        ``return_code`` (Optional[int]), ``stdout``, ``stderr``, ``runtime``,
+        ``error`` (Optional[str]), ``plan_file`` (path written).
+        """
+        result: Dict[str, Any] = {
+            "available": False,
+            "valid": None,
+            "return_code": None,
+            "stdout": "",
+            "stderr": "",
+            "runtime": 0.0,
+            "error": None,
+            "plan_file": None,
+            "command": None,
+        }
+
+        validate_exe = self.get_val_executable("Validate")
+        if validate_exe is None:
+            result["error"] = (
+                "VAL 'Validate' executable not found at VAL/build/bin/Validate. "
+                "Build VAL with: ./build_all.sh --planner val"
+            )
+            return result
+        result["available"] = True
+
+        if not plan_text or not plan_text.strip():
+            result["error"] = "No plan available to validate (planner produced empty plan)."
+            return result
+
+        # Auto-detect temporal plans (lines like "0.000: (action) [duration]")
+        # and pass a default epsilon tolerance so VAL accepts them.
+        is_temporal = bool(
+            re.search(r"^\s*\d+(?:\.\d+)?\s*:\s*\(.*\)\s*\[[^\]]+\]\s*$",
+                      plan_text, re.MULTILINE)
+        )
+
+        temp_dir = self.setup_temp_dir()
+        plan_file = temp_dir / "val_plan.txt"
+        plan_file.write_text(plan_text.rstrip() + "\n")
+        result["plan_file"] = str(plan_file)
+
+        cmd: List[str] = [str(validate_exe)]
+        if val_verbose:
+            cmd.append("-v")
+        if epsilon is None and is_temporal:
+            epsilon = 0.001
+        if epsilon is not None:
+            cmd.extend(["-t", str(epsilon)])
+        cmd.extend([str(domain_file), str(problem_file), str(plan_file)])
+        result["command"] = self.format_command(cmd)
+
+        start_time = time.time()
+        try:
+            completed = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            result["runtime"] = time.time() - start_time
+            result["return_code"] = completed.returncode
+            result["stdout"] = completed.stdout
+            result["stderr"] = completed.stderr
+            # VAL prints "Plan valid" on success and "Plan failed" / "Goal not
+            # satisfied" / "Bad plan description" on failure. Exit code 0 is
+            # the authoritative success signal, but we also consult the text
+            # to defend against tools that return 0 on parse-only paths.
+            stdout_lower = completed.stdout.lower()
+            if completed.returncode == 0 and "plan valid" in stdout_lower:
+                result["valid"] = True
+            elif completed.returncode == 0 and "plan failed" not in stdout_lower \
+                    and "bad plan" not in stdout_lower:
+                # Conservative: success exit with no explicit failure phrase.
+                result["valid"] = True
+            else:
+                result["valid"] = False
+        except subprocess.TimeoutExpired as exc:
+            result["runtime"] = time.time() - start_time
+            result["error"] = f"VAL validation timed out after {timeout}s"
+            result["stdout"] = self._decode_timeout_stream(exc.stdout)
+            result["stderr"] = self._decode_timeout_stream(exc.stderr)
+        except OSError as exc:
+            result["runtime"] = time.time() - start_time
+            result["error"] = f"Failed to execute VAL: {exc}"
+
+        return result
+
+    def print_validation_report(self, validation: Dict[str, Any]) -> None:
+        """Print a concise, human-readable VAL validation report."""
+        print("\n" + "=" * 70)
+        print("VAL Plan Validation")
+        print("=" * 70)
+        if not validation.get("available"):
+            print(f"Status: SKIPPED")
+            if validation.get("error"):
+                print(f"Reason: {validation['error']}")
+            print("=" * 70)
+            return
+
+        if validation.get("command"):
+            print(f"Command:    {validation['command']}")
+        if validation.get("plan_file"):
+            print(f"Plan file:  {validation['plan_file']}")
+        print(f"Runtime:    {validation.get('runtime', 0.0):.3f}s")
+        print(f"Exit code:  {validation.get('return_code')}")
+
+        valid = validation.get("valid")
+        if valid is True:
+            print(f"Result:     VALID")
+        elif valid is False:
+            print(f"Result:     INVALID")
+        else:
+            print(f"Result:     UNKNOWN")
+
+        if validation.get("error"):
+            print(f"Error:      {validation['error']}")
+
+        stdout = (validation.get("stdout") or "").strip()
+        stderr = (validation.get("stderr") or "").strip()
+        if stdout:
+            print("\n--- VAL stdout ---")
+            print(stdout)
+        if stderr:
+            print("\n--- VAL stderr ---")
+            print(stderr)
+        print("=" * 70)
+
     def run_planner(self, planner: str, domain_file: Path, problem_file: Path,
-                    config: str = None, timeout: int = 300, 
+                    profile: str = None, timeout: int = 300, 
                     extra_args: Optional[List[str]] = None) -> Dict:
-        """Run specified planner with given configuration.
+        """Run specified planner with given profile.
         
         Args:
             planner: Name of planner to run
             domain_file: Path to domain PDDL file
             problem_file: Path to problem PDDL file
-            config: Configuration name (uses planner default if None)
+            profile: Profile name (uses planner default if None)
             timeout: Timeout in seconds
             extra_args: Additional planner-specific arguments to pass through
         """
         
-        config = self.resolve_config(planner, config)
+        profile = self.resolve_profile(planner, profile)
         
         if planner == "downward":
-            return self.run_downward(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_downward(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "enhsp":
-            return self.run_enhsp(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_enhsp(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "ff":
-            return self.run_ff(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_ff(domain_file, problem_file, profile, timeout, extra_args)
         else:
             # For other planners, provide basic interface
-            return self.run_generic_planner(planner, domain_file, problem_file, config, timeout, extra_args)
+            return self.run_generic_planner(planner, domain_file, problem_file, profile, timeout, extra_args)
     
     def run_generic_planner(self, planner: str, domain_file: Path, problem_file: Path,
-                           config: str, timeout: int,
+                           profile: str, timeout: int,
                            extra_args: Optional[List[str]] = None) -> Dict:
         """Run a generic planner with basic PDDL interface."""
         planner_dir = self.planners_dir / planner
         
         # Handle specific planner cases
         if planner == "madagascar":
-            return self.run_madagascar(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_madagascar(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "vhpop":
-            return self.run_vhpop(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_vhpop(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "tfd":
-            return self.run_tfd(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_tfd(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "optic":
-            return self.run_optic(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_optic(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "popf":
-            return self.run_popf(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_popf(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "powerlifted":
-            return self.run_powerlifted(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_powerlifted(domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "symk":
-            return self.run_symk(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_symk(domain_file, problem_file, profile, timeout, extra_args)
         elif planner in ["ff-x", "metric-ff", "conformant-ff", "contingent-ff", "probabilistic-ff"]:
-            return self.run_ff_variant(planner, domain_file, problem_file, config, timeout, extra_args)
+            return self.run_ff_variant(planner, domain_file, problem_file, profile, timeout, extra_args)
         elif planner == "lpg":
-            return self.run_lpg(domain_file, problem_file, config, timeout, extra_args)
+            return self.run_lpg(domain_file, problem_file, profile, timeout, extra_args)
         else:
             # Try common executable names in planner directory
             executables = [planner, f"{planner}.jar", f"{planner}.py"]
@@ -1135,7 +1291,7 @@ class PlannerRunner:
                 
                 return {
                     "planner": planner,
-                    "config": config,
+                    "profile": profile,
                     "success": result.returncode == 0,
                     "runtime": runtime,
                     "plan": result.stdout,
@@ -1147,14 +1303,14 @@ class PlannerRunner:
             except subprocess.TimeoutExpired as exc:
                 partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
                 return self._build_timeout_response(
-                    planner, config, timeout, start_time, exc, partial_stdout.strip()
+                    planner, profile, timeout, start_time, exc, partial_stdout.strip()
                 )
     
     def run_madagascar(self, domain_file: Path, problem_file: Path, 
-                      config: str, timeout: int,
+                      profile: str, timeout: int,
                       extra_args: Optional[List[str]] = None) -> Dict:
         """Run MADAGASCAR SAT-based planner."""
-        bundle = self.prepare_planner_command("madagascar", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("madagascar", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         madagascar_dir = bundle["cwd"]
         
@@ -1175,7 +1331,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "madagascar",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1189,15 +1345,15 @@ class PlannerRunner:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._extract_madagascar_plan(partial_stdout)
             timeout_result = self._build_timeout_response(
-                "madagascar", config, timeout, start_time, exc, partial_stdout.strip()
+                "madagascar", profile, timeout, start_time, exc, partial_stdout.strip()
             )
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("madagascar", plan_content, "stdout", is_partial=True))
     
     def run_vhpop(self, domain_file: Path, problem_file: Path,
-                  config: str, timeout: int,
+                  profile: str, timeout: int,
                   extra_args: Optional[List[str]] = None) -> Dict:
         """Run VHPOP planner."""
-        bundle = self.prepare_planner_command("vhpop", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("vhpop", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         vhpop_dir = bundle["cwd"]
         
@@ -1218,7 +1374,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "vhpop",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1231,15 +1387,15 @@ class PlannerRunner:
         except subprocess.TimeoutExpired as exc:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             timeout_result = self._build_timeout_response(
-                "vhpop", config, timeout, start_time, exc, partial_stdout.strip()
+                "vhpop", profile, timeout, start_time, exc, partial_stdout.strip()
             )
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("vhpop", partial_stdout.strip(), "stdout", is_partial=True))
     
     def run_tfd(self, domain_file: Path, problem_file: Path,
-                config: str, timeout: int,
+                profile: str, timeout: int,
                 extra_args: Optional[List[str]] = None) -> Dict:
         """Run Temporal Fast Downward planner."""
-        bundle = self.prepare_planner_command("tfd", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("tfd", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         tfd_dir = bundle["cwd"]
         solution_file = bundle["solution_file"]
@@ -1268,7 +1424,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "tfd",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1302,7 +1458,7 @@ class PlannerRunner:
 
             timeout_result = {
                 "planner": "tfd",
-                "config": config,
+                "profile": profile,
                 "success": bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1319,10 +1475,10 @@ class PlannerRunner:
             return self._finalize_result_plans(timeout_result, plans)
     
     def run_optic(self, domain_file: Path, problem_file: Path,
-                  config: str, timeout: int,
+                  profile: str, timeout: int,
                   extra_args: Optional[List[str]] = None) -> Dict:
         """Run OPTIC planner."""
-        bundle = self.prepare_planner_command("optic", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("optic", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         optic_dir = bundle["cwd"]
         
@@ -1344,7 +1500,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "optic",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1359,7 +1515,7 @@ class PlannerRunner:
             plan_content = self._extract_optic_plan(partial_stdout)
             normalized_partial_stdout = self._compact_blank_runs(partial_stdout)
             timeout_result = self._build_timeout_response(
-                "optic", config, timeout, start_time, exc, plan_content,
+                "optic", profile, timeout, start_time, exc, plan_content,
             )
             timeout_result["stdout"] = normalized_partial_stdout
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("optic", plan_content, "stdout", is_partial=True))
@@ -1369,10 +1525,10 @@ class PlannerRunner:
         return self._extract_temporal_plan(stdout)
     
     def run_popf(self, domain_file: Path, problem_file: Path,
-                 config: str, timeout: int,
+                 profile: str, timeout: int,
                  extra_args: Optional[List[str]] = None) -> Dict:
         """Run POPF planner."""
-        bundle = self.prepare_planner_command("popf", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("popf", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         popf_build_dir = bundle["cwd"]
         env = bundle["env"]
@@ -1395,7 +1551,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "popf",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1409,7 +1565,7 @@ class PlannerRunner:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._extract_popf_plan(partial_stdout)
             timeout_result = self._build_timeout_response(
-                "popf", config, timeout, start_time, exc, plan_content
+                "popf", profile, timeout, start_time, exc, plan_content
             )
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block("popf", plan_content, "stdout", is_partial=True))
     
@@ -1418,10 +1574,10 @@ class PlannerRunner:
         return self._extract_temporal_plan(stdout)
     
     def run_lpg(self, domain_file: Path, problem_file: Path,
-                config: str, timeout: int,
+                profile: str, timeout: int,
                 extra_args: Optional[List[str]] = None) -> Dict:
         """Run LPG-td planner."""
-        bundle = self.prepare_planner_command("lpg", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("lpg", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         temp_dir = bundle["cwd"]
 
@@ -1444,7 +1600,7 @@ class PlannerRunner:
 
             result_data = {
                 "planner": "lpg",
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content.strip()),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1458,7 +1614,7 @@ class PlannerRunner:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._collect_lpg_plan(Path(temp_dir), partial_stdout)
             timeout_result = self._build_timeout_response(
-                "lpg", config, timeout, start_time, exc, plan_content
+                "lpg", profile, timeout, start_time, exc, plan_content
             )
             plans = self._plans_from_text_block("lpg", plan_content, "stdout", is_partial=True) if plan_content else []
             return self._finalize_result_plans(timeout_result, plans)
@@ -1498,10 +1654,10 @@ class PlannerRunner:
         return '\n'.join(plan_lines)
 
     def run_ff_variant(self, planner: str, domain_file: Path, problem_file: Path,
-                      config: str, timeout: int,
+                      profile: str, timeout: int,
                       extra_args: Optional[List[str]] = None) -> Dict:
         """Run FF-based planners (ff-x, metric-ff, conformant-ff, etc.)."""
-        bundle = self.prepare_planner_command(planner, domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command(planner, domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         temp_dir = bundle["cwd"]
         
@@ -1522,7 +1678,7 @@ class PlannerRunner:
             
             result_data = {
                 "planner": planner,
-                "config": config,
+                "profile": profile,
                 "success": result.returncode == 0 and bool(plan_content),
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1536,15 +1692,15 @@ class PlannerRunner:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._extract_ff_plan(partial_stdout)
             timeout_result = self._build_timeout_response(
-                planner, config, timeout, start_time, exc, plan_content
+                planner, profile, timeout, start_time, exc, plan_content
             )
             return self._finalize_result_plans(timeout_result, self._plans_from_text_block(planner, plan_content, "stdout", is_partial=True))
     
     def run_powerlifted(self, domain_file: Path, problem_file: Path,
-                       config: str, timeout: int,
+                       profile: str, timeout: int,
                        extra_args: Optional[List[str]] = None) -> Dict:
         """Run POWERLIFTED planner."""
-        bundle = self.prepare_planner_command("powerlifted", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("powerlifted", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         powerlifted_dir = bundle["cwd"]
         plan_file = bundle["plan_file"]
@@ -1571,7 +1727,7 @@ class PlannerRunner:
             
             result_data = {
                 "planner": "powerlifted",
-                "config": config,
+                "profile": profile,
                 "success": success,
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1590,15 +1746,15 @@ class PlannerRunner:
             else:
                 plan_content = self._selected_plan_text(plans)
             timeout_result = self._build_timeout_response(
-                "powerlifted", config, timeout, start_time, exc, plan_content
+                "powerlifted", profile, timeout, start_time, exc, plan_content
             )
             return self._finalize_result_plans(timeout_result, plans)
     
     def run_symk(self, domain_file: Path, problem_file: Path,
-                config: str, timeout: int,
+                profile: str, timeout: int,
                 extra_args: Optional[List[str]] = None) -> Dict:
         """Run SYMK planner."""
-        bundle = self.prepare_planner_command("symk", domain_file, problem_file, config, timeout, extra_args)
+        bundle = self.prepare_planner_command("symk", domain_file, problem_file, profile, timeout, extra_args)
         cmd = bundle["cmd"]
         symk_dir = bundle["cwd"]
         plan_file = Path(symk_dir) / "sas_plan"
@@ -1627,7 +1783,7 @@ class PlannerRunner:
             
             result_data = {
                 "planner": "symk",
-                "config": config,
+                "profile": profile,
                 "success": success,
                 "runtime": runtime,
                 "plan": plan_content,
@@ -1649,7 +1805,7 @@ class PlannerRunner:
                 plan_content = self._selected_plan_text(plans)
             extra_note = "recovered plan from partial output" if plan_content.strip() else ""
             timeout_result = self._build_timeout_response(
-                "symk", config, timeout, start_time, exc, plan_content, extra_note
+                "symk", profile, timeout, start_time, exc, plan_content, extra_note
             )
             finalized = self._finalize_result_plans(timeout_result, plans)
             self._cleanup_plan_artifacts(plan_file)
@@ -1739,14 +1895,14 @@ class PlannerRunner:
     
     def auto_select_planner(self, domain_path: str, prefer_optimal: bool = True) -> Tuple[str, str]:
         """
-        Automatically select the best planner and configuration for a domain.
+        Automatically select the best planner and profile for a domain.
         
         Args:
             domain_path: Path to the PDDL domain file
             prefer_optimal: Whether to prefer optimal planners
             
         Returns:
-            Tuple of (planner_name, config) or raises exception if no compatible planners
+            Tuple of (planner_name, profile) or raises exception if no compatible planners
         """
         analysis = self.analyze_domain(domain_path)
         compatible_planners = analysis['available_compatible_planners']
@@ -1781,21 +1937,21 @@ class PlannerRunner:
         best_planner = compatible_planners[0]
         planner_name = best_planner[0]
         
-        # Select appropriate config based on planner
+        # Select appropriate profile based on planner
         if planner_name == 'downward':
             if prefer_optimal:
-                config = 'optimal-lmcut'  # Optimal
+                profile = 'optimal-lmcut'  # Optimal
             else:
-                config = 'satisficing-ff'  # Satisficing
+                profile = 'satisficing-ff'  # Satisficing
         elif planner_name == 'enhsp':
             if prefer_optimal:
-                config = 'opt-hrmax'
+                profile = 'opt-hrmax'
             else:
-                config = 'sat-hmrp'
+                profile = 'sat-hmrp'
         else:
-            config = None  # Use default config
+            profile = None  # Use default profile
         
-        return planner_name, config
+        return planner_name, profile
 
 
 def main():
@@ -1821,9 +1977,9 @@ def main():
                     # Basic usage with auto-selected planner
                     %(prog)s domain.pddl problem.pddl
 
-                    # Specific planner with predefined configuration
-                    %(prog)s domain.pddl problem.pddl -p downward --config optimal-lmcut
-                    %(prog)s domain.pddl problem.pddl -p symk --config topk-5
+                    # Specific planner with predefined profile
+                    %(prog)s domain.pddl problem.pddl -p downward --profile optimal-lmcut
+                    %(prog)s domain.pddl problem.pddl -p symk --profile topk-5
 
                     # With planner-specific arguments (after --)
                     %(prog)s domain.pddl problem.pddl -p optic -- -b
@@ -1831,16 +1987,16 @@ def main():
 
                     # Show available options
                     %(prog)s --list-planners
-                    %(prog)s --list-configs downward
-                    %(prog)s --list-configs symk
+                    %(prog)s --list-profiles downward
+                    %(prog)s --list-profiles symk
 
                     # Dry run (shows the exact command without executing)
                     %(prog)s domain.pddl problem.pddl -p ff --dry-run
 
                 NOTES:
-                    - Configuration is optional (uses planner default if not specified)
+                    - Profile is optional (uses planner default if not specified)
                     - Pass-through arguments (after --) are sent directly to the planner
-                    - Use --list-configs to see available configurations for each planner
+                    - Use --list-profiles to see available profiles for each planner
                     - Each planner's output is printed directly to terminal (passthrough mode)
                 """)
     )
@@ -1854,8 +2010,8 @@ def main():
                        choices=runner.get_available_planners(),
                        help="Planner to use (default: auto-selected based on domain requirements)")
     
-    parser.add_argument("-c", "--config", 
-                       help="Planner configuration name or planner-specific config string (optional)")
+    parser.add_argument("-P", "--profile", 
+                       help="Planner profile name or planner-specific profile string (optional)")
     
     parser.add_argument("-t", "--timeout", type=int, default=300,
                        help="Timeout in seconds (default: 300)")
@@ -1867,8 +2023,8 @@ def main():
     parser.add_argument("-l", "--list-planners", action="store_true",
                        help="List all available planners and exit")
     
-    parser.add_argument("-L", "--list-configs", metavar="PLANNER",
-                       help="List available configurations for a specific planner")
+    parser.add_argument("-L", "--list-profiles", metavar="PLANNER",
+                       help="List available profiles for a specific planner")
     
     # Analysis options
     parser.add_argument("-a", "--analyze", action="store_true",
@@ -1894,9 +2050,19 @@ def main():
     parser.add_argument("-q", "--no-live-output", action="store_true",
                        help="Disable live streaming of planner stdout/stderr while running")
     
+    # Plan validation options (uses KCL-Planning's VAL submodule)
+    parser.add_argument("-V", "--validate", action="store_true",
+                       help="Validate the produced plan with VAL (requires VAL built: ./build_all.sh --planner val)")
+    parser.add_argument("--val-epsilon", type=float, default=None,
+                       help="Epsilon tolerance passed to VAL via -t (auto-set for temporal plans)")
+    parser.add_argument("--val-verbose", action="store_true",
+                       help="Pass -v to VAL for verbose plan-check reporting")
+    parser.add_argument("--val-timeout", type=int, default=60,
+                       help="Timeout in seconds for VAL validation (default: 60)")
+    
     parser.add_argument("--verbose", "-v", action="store_true",
                        help="Verbose domain analysis output")
-    
+
     args = parser.parse_args(argv)
     runner.live_output = not args.no_live_output
 
@@ -1916,26 +2082,26 @@ def main():
                 print(f"  {planner}")
         return 0
     
-    if args.list_configs:
-        planner_name = args.list_configs
+    if args.list_profiles:
+        planner_name = args.list_profiles
         if runner.spec and runner.spec.has_planner(planner_name):
             try:
-                runner.spec.list_configurations(planner_name)
+                runner.spec.list_profiles(planner_name)
             except Exception as e:
-                print(f"Error listing configurations: {e}", file=sys.stderr)
+                print(f"Error listing profiles: {e}", file=sys.stderr)
                 return 1
         elif planner_name == "downward":
-            print(f"\n{planner_name} - Available Configurations:\n")
-            for config, search in runner.fd_configs.items():
-                print(f"  {config:25} {search}")
+            print(f"\n{planner_name} - Available Profiles:\n")
+            for profile, search in runner.fd_profiles.items():
+                print(f"  {profile:25} {search}")
             print()
         elif planner_name == "enhsp":
-            print(f"\n{planner_name} - Available Configurations:\n")
-            for config in runner.enhsp_configs:
-                print(f"  {config}")
+            print(f"\n{planner_name} - Available Profiles:\n")
+            for profile in runner.enhsp_profiles:
+                print(f"  {profile}")
             print()
         else:
-            print(f"No configurations found for planner: {planner_name}")
+            print(f"No profiles found for planner: {planner_name}")
             print(f"Use --list-planners to see available planners")
         return 0
     
@@ -1974,45 +2140,45 @@ def main():
         
         # Auto-select planner if not specified or if requested
         planner = args.planner
-        config = args.config
+        profile = args.profile
         
         if args.auto_planner or not planner:
             try:
-                planner, auto_config = runner.auto_select_planner(
+                planner, auto_profile = runner.auto_select_planner(
                     str(domain_file), 
                     prefer_optimal=args.prefer_optimal
                 )
-                if not config:  # Only use auto-config if user didn't specify one
-                    config = auto_config
+                if not profile:  # Only use auto-profile if user didn't specify one
+                    profile = auto_profile
                 
                 print(f"\nAuto-selected planner: {planner}")
-                if config:
-                    print(f"Auto-selected config: {config}")
+                if profile:
+                    print(f"Auto-selected profile: {profile}")
                     
             except ValueError as e:
                 print(f"Error: {e}", file=sys.stderr)
                 return 1
 
-        config = runner.resolve_config(planner, config)
+        profile = runner.resolve_profile(planner, profile)
         
         print(f"\nDomain: {domain_file}")
         print(f"Problem: {problem_file}")
         print(f"Planner: {planner}")
-        print(f"Config: {config or 'default'}")
+        print(f"Profile: {profile or 'default'}")
         print(f"Timeout: {args.timeout}s")
         print("-" * 50)
         
         # Print execution header
         auto_selected = args.auto_planner or (not args.planner)
         runner.print_execution_header(
-            domain_file, problem_file, planner, config, 
+            domain_file, problem_file, planner, profile, 
             args.timeout, auto_selected, extra_args
         )
         
         # Show command for dry-run
         if args.dry_run:
             bundle = runner.prepare_planner_command(
-                planner, domain_file, problem_file, config, args.timeout, extra_args
+                planner, domain_file, problem_file, profile, args.timeout, extra_args
             )
             print("Exact command:")
             print(f"  {runner.format_command(bundle['cmd'])}")
@@ -2025,8 +2191,21 @@ def main():
         # Run planner with extra arguments
         result = runner.run_planner(
             planner, domain_file, problem_file, 
-            config, args.timeout, extra_args
+            profile, args.timeout, extra_args
         )
+
+        # Optional plan validation with VAL
+        validation = None
+        if args.validate:
+            validation = runner.validate_plan_with_val(
+                domain_file,
+                problem_file,
+                result.get("plan", "") or "",
+                timeout=args.val_timeout,
+                epsilon=args.val_epsilon,
+                val_verbose=args.val_verbose,
+            )
+            result["validation"] = validation
         
         # Default behavior: passthrough output mode
         # In live-output mode, planner stdout/stderr has already been streamed.
@@ -2036,6 +2215,8 @@ def main():
                 print(result['stdout'])
             if not runner.live_output and result['stderr']:
                 print(result['stderr'], file=sys.stderr)
+            if validation is not None:
+                runner.print_validation_report(validation)
         
         # Additional formats for optional processing
         elif args.output_format == "compact":
@@ -2050,11 +2231,13 @@ def main():
                         source_name = f", {plan['source_name']}" if plan.get('source_name') else ""
                         print(f"\nPlan {plan['rank']}{selected_marker} ({plan['format']}, {plan['source']}{source_name})")
                         print(plan['text'])
+            if validation is not None:
+                runner.print_validation_report(validation)
         
         elif args.output_format == "json":
             output_data = {
                 "planner": result["planner"],
-                "config": result["config"],
+                "profile": result["profile"],
                 "success": result["success"],
                 "runtime": result["runtime"],
                 "plan": result["plan"],
@@ -2063,6 +2246,8 @@ def main():
                 "selected_plan_rank": result.get("selected_plan_rank"),
                 "return_code": result["return_code"]
             }
+            if validation is not None:
+                output_data["validation"] = validation
             print(json.dumps(output_data, indent=2), file=_original_stdout)
         
         # Save full results to file if requested
