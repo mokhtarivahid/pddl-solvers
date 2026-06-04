@@ -22,6 +22,7 @@ import time
 import shlex
 import re
 import textwrap
+from collections import OrderedDict
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -368,6 +369,177 @@ class PlannerRunner:
             return "sequential"
         return "unknown"
 
+    # ------------------------------------------------------------------
+    # Step / parallel-action support
+    # ------------------------------------------------------------------
+    # Plans from sequential planners are 1 action per step. Plans from
+    # MADAGASCAR (parallel-step) and VHPOP (partial-order) may have
+    # multiple actions sharing the same step index. Temporal plans
+    # (OPTIC/POPF/TFD/ENHSP-temporal) group by exact timestamp string.
+    _PDDL_CALL_RE = re.compile(r"\(\s*([A-Za-z_][\w\-]*)([^()]*)\)")
+    _TEMPORAL_LINE_RE = re.compile(
+        r"^(?P<t>\d+(?:\.\d+)?)\s*:\s*(?P<call>\(.+?\))\s*(?:\[(?P<dur>[^\]]+)\])?\s*$"
+    )
+
+    def _parse_pddl_call(self, text: str, duration: Optional[float] = None) -> Dict[str, Any]:
+        """Parse a ``(name arg arg ...)`` string into a structured action."""
+        pddl = text.strip()
+        match = self._PDDL_CALL_RE.match(pddl)
+        if match:
+            name = match.group(1).lower()
+            args = match.group(2).split()
+            args = [a.strip() for a in args if a.strip()]
+        else:
+            name = pddl.strip("()").split()[0].lower() if pddl.strip("()") else ""
+            args = []
+        return {
+            "name": name,
+            "args": args,
+            "pddl": pddl,
+            "duration": duration,
+        }
+
+    def _make_step(
+        self,
+        index: str,
+        actions: List[Dict[str, Any]],
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "index": str(index),
+            "start_time": start_time,
+            "end_time": end_time,
+            "actions": actions,
+        }
+
+    def _steps_from_sequential(self, lines: List[str]) -> List[Dict[str, Any]]:
+        """One action per step, indices 0..N-1; skip comment lines."""
+        steps: List[Dict[str, Any]] = []
+        for line in lines:
+            if not line or line.startswith(";"):
+                continue
+            steps.append(self._make_step(str(len(steps)), [self._parse_pddl_call(line)]))
+        return steps
+
+    def _steps_from_temporal(self, lines: List[str]) -> Optional[List[Dict[str, Any]]]:
+        """Group temporal plan lines by exact timestamp string.
+
+        Returns None if no line looks temporal.
+        """
+        groups: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+        saw_temporal = False
+        for line in lines:
+            if not line or line.startswith(";"):
+                continue
+            m = self._TEMPORAL_LINE_RE.match(line)
+            if not m:
+                continue
+            saw_temporal = True
+            t_str = m.group("t")
+            dur_raw = m.group("dur")
+            duration: Optional[float] = None
+            if dur_raw is not None:
+                try:
+                    duration = float(dur_raw.strip())
+                except ValueError:
+                    duration = None
+            action = self._parse_pddl_call(m.group("call"), duration=duration)
+            try:
+                start_time = float(t_str)
+            except ValueError:
+                start_time = None
+            entry = groups.get(t_str)
+            if entry is None:
+                groups[t_str] = {"start_time": start_time, "actions": [action]}
+            else:
+                entry["actions"].append(action)
+        if not saw_temporal:
+            return None
+        steps: List[Dict[str, Any]] = []
+        for t_str, entry in groups.items():
+            durs = [a["duration"] for a in entry["actions"] if a.get("duration") is not None]
+            end_time: Optional[float] = None
+            if entry["start_time"] is not None and durs:
+                end_time = entry["start_time"] + max(durs)
+            steps.append(
+                self._make_step(
+                    t_str,
+                    entry["actions"],
+                    start_time=entry["start_time"],
+                    end_time=end_time,
+                )
+            )
+        return steps
+
+    def _extract_madagascar_steps(self, stdout: str) -> List[Dict[str, Any]]:
+        """Group MADAGASCAR ``STEP N[.M]:`` lines into parallel steps.
+
+        Each ``STEP`` line becomes one step whose ``actions`` are all the
+        parallel ``name(args)`` calls listed on that line. The index is
+        preserved verbatim as a string ("0", "3", "3.0", "3.1", ...).
+        """
+        steps: List[Dict[str, Any]] = []
+        in_plan = False
+        step_re = re.compile(r"^STEP\s+(\d+(?:\.\d+)?)\s*:\s*(.+)$", re.IGNORECASE)
+        call_re = re.compile(r"([A-Za-z_][\w\-]*)\s*\(([^()]*)\)")
+        for raw_line in stdout.splitlines():
+            line = raw_line.strip()
+            if "PLAN FOUND:" in line.upper():
+                in_plan = True
+                continue
+            if not in_plan:
+                continue
+            if "actions in the plan" in line.lower() or line.startswith("total time"):
+                break
+            m = step_re.match(line)
+            if not m:
+                continue
+            idx = m.group(1)
+            body = m.group(2).strip()
+            calls = call_re.findall(body)
+            actions: List[Dict[str, Any]] = []
+            if calls:
+                for name, raw_args in calls:
+                    args = [a.strip() for a in raw_args.split(",") if a.strip()]
+                    pddl = (
+                        f"({name} {' '.join(args)})".lower()
+                        if args
+                        else f"({name})".lower()
+                    )
+                    actions.append(self._parse_pddl_call(pddl))
+            else:
+                pddl = body.lower()
+                if not pddl.startswith("("):
+                    pddl = f"({pddl})"
+                actions.append(self._parse_pddl_call(pddl))
+            steps.append(self._make_step(idx, actions))
+        return steps
+
+    def _extract_vhpop_steps(self, stdout: str) -> List[Dict[str, Any]]:
+        """Group VHPOP ``N:(action ...)`` lines into parallel steps.
+
+        VHPOP emits one line per action; consecutive lines that share the
+        same integer ``N`` (and ``Makespan: N`` reports the count) form a
+        parallel layer. Each unique ``N`` becomes one step with the
+        parallel actions as its ``actions`` list.
+        """
+        groups: "OrderedDict[str, List[Dict[str, Any]]]" = OrderedDict()
+        step_re = re.compile(r"^(\d+)\s*:\s*(\(.+\))\s*$")
+        for raw_line in stdout.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith(";"):
+                continue
+            if re.match(r"^(makespan|time)\s*:", line, re.IGNORECASE):
+                continue
+            m = step_re.match(line)
+            if not m:
+                continue
+            idx = m.group(1)
+            action = self._parse_pddl_call(m.group(2).lower())
+            groups.setdefault(idx, []).append(action)
+        return [self._make_step(idx, acts) for idx, acts in groups.items()]
+
     def _extract_plan_metrics(self, text: str) -> Dict[str, Optional[float]]:
         """Extract coarse cost and makespan signals from plan text."""
         cost = None
@@ -408,23 +580,59 @@ class PlannerRunner:
         source_name: Optional[str] = None,
         is_partial: bool = False,
         is_selected: bool = False,
+        steps: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """Build a structured plan entry from raw text."""
+        """Build a structured plan entry from raw text.
+
+        ``steps`` (when provided) preserves parallel/temporal grouping that
+        the flat ``text`` cannot represent. If omitted, steps are inferred:
+        temporal-looking lines are grouped by exact timestamp string, and
+        everything else collapses to a sequential one-action-per-step list.
+        """
         normalized_text = text.strip()
         lines = [line.strip() for line in normalized_text.splitlines() if line.strip()]
         metrics = self._extract_plan_metrics(normalized_text)
+
+        if steps is None:
+            steps = self._steps_from_temporal(lines)
+            if steps is None:
+                steps = self._steps_from_sequential(lines)
+
+        is_temporal_steps = any(s.get("start_time") is not None for s in steps)
+        is_parallel = any(len(s["actions"]) > 1 for s in steps)
+        if is_temporal_steps:
+            fmt = "temporal"
+        elif is_parallel:
+            fmt = "parallel-step"
+        else:
+            fmt = self._infer_plan_format(lines)
+
+        flat_actions: List[str] = []
+        for step in steps:
+            for action in step["actions"]:
+                flat_actions.append(action["pddl"])
+        # Preserve any comment lines from the original text for backwards
+        # compatibility with consumers that read ``actions`` directly.
+        comment_lines = [line for line in lines if line.startswith(";")]
+        if not flat_actions:
+            flat_actions = lines
 
         return {
             "planner": planner,
             "rank": rank,
             "source": source,
             "source_name": source_name,
-            "format": self._infer_plan_format(lines),
+            "format": fmt,
             "is_partial": is_partial,
             "is_selected": is_selected,
+            "is_parallel": is_parallel,
             "text": normalized_text,
-            "actions": lines,
-            "action_count": len([line for line in lines if not line.startswith(";")]),
+            "actions": flat_actions if not comment_lines else lines,
+            "action_count": sum(len(s["actions"]) for s in steps) or len(
+                [line for line in lines if not line.startswith(";")]
+            ),
+            "steps": steps,
+            "step_count": len(steps),
             "cost": metrics["cost"],
             "makespan": metrics["makespan"],
         }
@@ -436,10 +644,11 @@ class PlannerRunner:
         source: str,
         source_name: Optional[str] = None,
         is_partial: bool = False,
+        steps: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Create a single plan entry from a raw text block when present."""
         normalized_text = text.strip()
-        if not normalized_text:
+        if not normalized_text and not steps:
             return []
         return [
             self._build_plan_entry(
@@ -450,6 +659,7 @@ class PlannerRunner:
                 source_name=source_name,
                 is_partial=is_partial,
                 is_selected=True,
+                steps=steps,
             )
         ]
 
@@ -1062,11 +1272,31 @@ class PlannerRunner:
         MADAGASCAR prints lines like ``STEP 0: climb(p0)`` (function-call
         notation with comma-separated args). They are rewritten to the
         canonical IPC form ``(climb p0)`` so VAL can validate the plan.
+
+        Two MADAGASCAR-specific quirks are handled here:
+
+        * A single ``STEP`` may list **several parallel actions** separated
+          by whitespace, e.g.
+          ``STEP 0: move_to_grasp(arm1,...) move_to_grasp(arm2,...)``.
+          Each action is emitted as its own line.
+        * Some steps use a **decimal sub-step index** (``STEP 3.0:``,
+          ``STEP 3.1:``) for actions within a parallel layer. These were
+          previously dropped by an integer-only regex; now both
+          ``\\d+`` and ``\\d+\\.\\d+`` indices are accepted.
         """
         plan_lines = []
         in_plan = False
-        step_re = re.compile(r"^STEP\s+\d+\s*:\s*(.+)$", re.IGNORECASE)
-        call_re = re.compile(r"^([A-Za-z_][\w\-]*)\s*\((.*)\)\s*$")
+        # Accept both integer (``STEP 3:``) and decimal (``STEP 3.0:``) indices.
+        step_re = re.compile(r"^STEP\s+\d+(?:\.\d+)?\s*:\s*(.+)$", re.IGNORECASE)
+        # Match a single ``name(arg,arg,...)`` call anywhere on the line so a
+        # parallel step can be split into individual actions.
+        call_re = re.compile(r"([A-Za-z_][\w\-]*)\s*\(([^()]*)\)")
+
+        def _format_call(name: str, raw_args: str) -> str:
+            args = [a.strip() for a in raw_args.split(",") if a.strip()]
+            if args:
+                return f"({name} {' '.join(args)})".lower()
+            return f"({name})".lower()
 
         for raw_line in stdout.splitlines():
             line = raw_line.strip()
@@ -1075,24 +1305,23 @@ class PlannerRunner:
                 continue
 
             if in_plan:
-                m = step_re.match(line)
-                if m:
-                    body = m.group(1).strip()
-                    cm = call_re.match(body)
-                    if cm:
-                        name = cm.group(1)
-                        args = [a.strip() for a in cm.group(2).split(",") if a.strip()]
-                        action = f"({name} {' '.join(args)})".strip()
-                        # Drop trailing space if no args -> "(name)"
-                        action = action.replace(" )", ")").lower()
-                    else:
-                        action = body.lower()
-                        if not action.startswith("("):
-                            action = f"({action})"
-                    plan_lines.append(action)
-                    continue
                 if "actions in the plan" in line.lower() or line.startswith("total time"):
                     break
+                m = step_re.match(line)
+                if not m:
+                    continue
+                body = m.group(1).strip()
+                # Split a parallel step into individual ``name(args)`` calls.
+                calls = call_re.findall(body)
+                if calls:
+                    for name, raw_args in calls:
+                        plan_lines.append(_format_call(name, raw_args))
+                else:
+                    # Unrecognized form: preserve as a single bracketed action.
+                    action = body.lower()
+                    if not action.startswith("("):
+                        action = f"({action})"
+                    plan_lines.append(action)
 
         return '\n'.join(plan_lines)
 
@@ -1421,7 +1650,8 @@ class PlannerRunner:
             runtime = time.time() - start_time
             
             plan_content = self._extract_madagascar_plan(result.stdout)
-            plans = self._plans_from_text_block("madagascar", plan_content, "stdout")
+            mad_steps = self._extract_madagascar_steps(result.stdout)
+            plans = self._plans_from_text_block("madagascar", plan_content, "stdout", steps=mad_steps or None)
 
             result_data = {
                 "planner": "madagascar",
@@ -1438,10 +1668,11 @@ class PlannerRunner:
         except subprocess.TimeoutExpired as exc:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             plan_content = self._extract_madagascar_plan(partial_stdout)
+            mad_steps = self._extract_madagascar_steps(partial_stdout)
             timeout_result = self._build_timeout_response(
                 "madagascar", profile, timeout, start_time, exc, partial_stdout.strip()
             )
-            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("madagascar", plan_content, "stdout", is_partial=True))
+            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("madagascar", plan_content, "stdout", is_partial=True, steps=mad_steps or None))
     
     def run_vhpop(self, domain_file: Path, problem_file: Path,
                   profile: str, timeout: int,
@@ -1467,7 +1698,8 @@ class PlannerRunner:
             # "(action arg ...)" per line, stripping ;-comments and
             # "Makespan:"/"Time:" metadata lines).
             plan_content = self._extract_vhpop_plan(result.stdout)
-            plans = self._plans_from_text_block("vhpop", plan_content, "stdout")
+            vhpop_steps = self._extract_vhpop_steps(result.stdout)
+            plans = self._plans_from_text_block("vhpop", plan_content, "stdout", steps=vhpop_steps or None)
 
             result_data = {
                 "planner": "vhpop",
@@ -1484,10 +1716,11 @@ class PlannerRunner:
         except subprocess.TimeoutExpired as exc:
             partial_stdout = self._decode_timeout_stream(exc.stdout or exc.output)
             partial_plan = self._extract_vhpop_plan(partial_stdout)
+            vhpop_steps = self._extract_vhpop_steps(partial_stdout)
             timeout_result = self._build_timeout_response(
                 "vhpop", profile, timeout, start_time, exc, partial_plan
             )
-            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("vhpop", partial_plan, "stdout", is_partial=True))
+            return self._finalize_result_plans(timeout_result, self._plans_from_text_block("vhpop", partial_plan, "stdout", is_partial=True, steps=vhpop_steps or None))
     
     def run_tfd(self, domain_file: Path, problem_file: Path,
                 profile: str, timeout: int,

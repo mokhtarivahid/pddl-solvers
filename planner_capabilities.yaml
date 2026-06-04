@@ -68,7 +68,7 @@ priority:
     Classical Planning: [downward, symk, ff, madagascar, powerlifted]
     ADL Planning: [downward, symk, ff-x, ff, lpg]
     Numeric Planning: [enhsp, metric-ff, downward, lpg]
-    Temporal Planning: [optic, popf, tfd, lpg]
+    Temporal Planning: [optic, popf, tfd, lpg, vhpop]
     Temporal-Numeric Planning: [optic, popf, tfd, lpg]
     Probabilistic Planning: [probabilistic-ff, contingent-ff, conformant-ff]
 
@@ -219,16 +219,16 @@ planners:
 
   vhpop:
     name: VHPOP
-    pddl_version: PDDL 1.2+
-    description: Partial-order causal-link planner.
-    notes: Academic planner, good for small problems.
+    pddl_version: PDDL 2.1
+    description: Partial-order causal-link planner with durative-action support.
+    notes: Academic planner; produces parallel (partial-order) plans where multiple actions can share the same step index; supports durative actions and fluents.
     performance_category: low
     reliability: medium
     optimization: true
-    temporal: false
+    temporal: true
     temporal_only: false
-    approach_tags: [classical, adl, partial-order, optimal]
-    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl]
+    approach_tags: [classical, adl, partial-order, temporal, optimal]
+    supported_requirements: [strips, typing, negative-preconditions, disjunctive-preconditions, equality, existential-preconditions, universal-preconditions, quantified-preconditions, conditional-effects, adl, durative-actions, fluents]
 
   conformant-ff:
     name: Conformant-FF
